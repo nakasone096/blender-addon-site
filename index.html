@@ -344,6 +344,42 @@
       <h2>お知らせ</h2>
       <div class="news-list">
 
+        <!-- ============================================
+          お知らせの追加方法
+          下のブロックをコピーして上に貼り付けてください
+          （新しいお知らせが上に来るようにする）
+
+          【本文のみの場合】
+          <div class="news-item">
+            <button class="news-header" onclick="toggleNews(this)">
+              <span class="news-date">yyyy/mm/dd</span>
+              <span class="news-title">表題</span>
+              <span class="news-arrow">▼</span>
+            </button>
+            <div class="news-body">
+              <p>本文をここに書く</p>
+            </div>
+          </div>
+
+          【パッチノートの場合】
+          <div class="news-item">
+            <button class="news-header" onclick="toggleNews(this)">
+              <span class="news-date">yyyy/mm/dd</span>
+              <span class="news-title">アドオンのverX.X.X（buildXXXX）をリリース</span>
+              <span class="news-arrow">▼</span>
+            </button>
+            <div class="news-body">
+              <p class="news-patch">パッチノート｜verX.X.X（buildXXXX）</p>
+              <p>変更点は以下です</p>
+              <ul>
+                <li>変更点1</li>
+                <li>変更点2</li>
+              </ul>
+              <p class="news-thanks">ご協力ありがとうございます。</p>
+            </div>
+          </div>
+          ============================================ -->
+
         <div class="news-item">
           <button class="news-header" onclick="toggleNews(this)">
             <span class="news-date">2026/06/16</span>
