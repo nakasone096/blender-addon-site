@@ -293,6 +293,20 @@ h2::after {
   margin-top: 8px;
 }
 
+.step--complete {
+  border-color: var(--color-green);
+  background-color: rgba(46, 204, 113, 0.08);
+}
+
+.step-num--complete {
+  background-color: var(--color-green);
+  font-size: 24px;
+}
+
+.step--complete h3 {
+  color: var(--color-green);
+}
+
 .step-link-btn {
   display: inline-block;
   padding: 8px 20px;
