@@ -539,4 +539,28 @@ footer small {
   section {
     padding: 60px 16px;
   }
+
+  /* お知らせ スマホ対応 */
+  .news-header {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding: 14px 0;
+  }
+  .news-date {
+    width: 100%;
+    font-size: 12px;
+  }
+  .news-title {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .news-arrow {
+    margin-left: auto;
+  }
+  .news-body {
+    font-size: 13px;
+  }
+  .news-body ul {
+    padding-left: 18px;
+  }
 }
