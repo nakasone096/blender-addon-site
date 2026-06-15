@@ -286,6 +286,13 @@ h2::after {
   padding: 12px 0;
 }
 
+.step-img {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  margin-top: 8px;
+}
+
 .step-link-btn {
   display: inline-block;
   padding: 8px 20px;
