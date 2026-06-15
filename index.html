@@ -20,6 +20,7 @@
         <ul>
           <li><a href="#links">リンク集</a></li>
           <li><a href="#install">導入手順</a></li>
+          <li><a href="#faq">FAQ</a></li>
           <li><a href="#news">お知らせ</a></li>
         </ul>
       </nav>
@@ -264,6 +265,80 @@
       </div>
     </section>
 
+    <!-- FAQセクション -->
+    <section id="faq" class="section-faq">
+      <h2>よくある質問</h2>
+      <div class="faq-list">
+
+        <div class="faq-item">
+          <button class="faq-header" onclick="toggleFaq(this)">
+            <span class="faq-q">Q</span>
+            <span class="faq-title">Nキーを押してもTutorialタブが出ない</span>
+            <span class="faq-arrow">▼</span>
+          </button>
+          <div class="faq-body">
+            <p>アドオンが有効化されていない可能性があります。<br>
+            「編集」→「プリファレンス」→「アドオン」を開き、
+            「<strong>3DCG Tutorial Simulator</strong>」にチェックが入っているか確認してください。</p>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-header" onclick="toggleFaq(this)">
+            <span class="faq-q">Q</span>
+            <span class="faq-title">インストールがうまくいかない</span>
+            <span class="faq-arrow">▼</span>
+          </button>
+          <div class="faq-body">
+            <p>ZIPファイルを解凍（展開）してからインストールしようとしている可能性があります。<br>
+            ダウンロードした <code>purototype_0001-main.zip</code> は<strong>解凍せずそのまま</strong>選択してインストールしてください。</p>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-header" onclick="toggleFaq(this)">
+            <span class="faq-q">Q</span>
+            <span class="faq-title">ログ保存フォルダはどこに設定すればいい？</span>
+            <span class="faq-arrow">▼</span>
+          </button>
+          <div class="faq-body">
+            <p>デスクトップにコピーして<strong>学籍番号に変更したフォルダ</strong>を選択してください。<br>
+            （例：デスクトップ内の <code>23DB096</code> フォルダ）</p>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-header" onclick="toggleFaq(this)">
+            <span class="faq-q">Q</span>
+            <span class="faq-title">「確認」ボタンを押しても正解にならない</span>
+            <span class="faq-arrow">▼</span>
+          </button>
+          <div class="faq-body">
+            <p>操作が完了していない可能性があります。<br>
+            パネル内のヒントをよく読んで、手順通りに操作してから再度「確認」ボタンを押してみてください。<br>
+            失敗するたびにヒントが追加表示されます。</p>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-header" onclick="toggleFaq(this)">
+            <span class="faq-q">Q</span>
+            <span class="faq-title">Blenderが重い・動作が遅い</span>
+            <span class="faq-arrow">▼</span>
+          </button>
+          <div class="faq-body">
+            <p>以下を試してみてください。</p>
+            <ul>
+              <li>スカルプトモードのブラシ解像度を下げる</li>
+              <li>サブディビジョンサーフェスのレベル数を下げる（1〜2推奨）</li>
+              <li>他のアプリを閉じてBlenderに集中させる</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
     <!-- お知らせセクション -->
     <section id="news" class="section-news">
       <h2>お知らせ</h2>
@@ -340,6 +415,19 @@
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') closeLightbox();
     });
+
+    function toggleFaq(btn) {
+      var item = btn.parentElement;
+      var isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(function(el) {
+        el.classList.remove('open');
+        el.querySelector('.faq-arrow').textContent = '▼';
+      });
+      if (!isOpen) {
+        item.classList.add('open');
+        btn.querySelector('.faq-arrow').textContent = '▲';
+      }
+    }
 
     function toggleNews(btn) {
       var item = btn.parentElement;

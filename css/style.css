@@ -396,6 +396,106 @@ footer small {
   color: var(--color-text-dim);
 }
 
+/* FAQ */
+.section-faq {
+  background-color: var(--color-bg);
+}
+
+.faq-list {
+  max-width: 720px;
+  margin: 0 auto;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 8px 32px;
+}
+
+.faq-item {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.faq-item:last-child {
+  border-bottom: none;
+}
+
+.faq-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.faq-header:hover .faq-title {
+  color: var(--color-blue);
+}
+
+.faq-q {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--color-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.faq-title {
+  font-size: 15px;
+  color: var(--color-text);
+  flex: 1;
+  transition: color 0.2s;
+}
+
+.faq-arrow {
+  font-size: 12px;
+  color: var(--color-text-dim);
+  flex-shrink: 0;
+}
+
+.faq-body {
+  display: none;
+  padding: 0 0 20px 40px;
+  font-size: 14px;
+  color: var(--color-text-dim);
+  line-height: 1.8;
+}
+
+.faq-item.open .faq-body {
+  display: block;
+}
+
+.faq-body ul {
+  list-style: disc;
+  padding-left: 20px;
+  margin: 8px 0;
+}
+
+.faq-body ul li {
+  margin-bottom: 4px;
+}
+
+@media (max-width: 768px) {
+  .faq-list {
+    padding: 8px 16px;
+  }
+  .faq-title {
+    font-size: 14px;
+  }
+  .faq-body {
+    padding-left: 8px;
+    font-size: 13px;
+  }
+}
+
 /* お知らせ アコーディオン */
 .news-item {
   border-bottom: 1px solid var(--color-border);
