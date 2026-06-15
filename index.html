@@ -158,39 +158,34 @@
   </footer>
 
   <!-- ライトボックス -->
-  <div id="lightbox" class="lightbox">
-    <button class="lightbox-close">✕</button>
-    <img id="lightbox-img" src="" alt="">
+  <div id="lightbox" onclick="closeLightbox()" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:9999; align-items:center; justify-content:center;">
+    <span onclick="closeLightbox()" style="position:absolute; top:16px; right:24px; font-size:36px; color:#fff; cursor:pointer; line-height:1;">✕</span>
+    <img id="lightbox-img" src="" alt="" onclick="event.stopPropagation()" style="max-width:90vw; max-height:90vh; border-radius:8px;">
   </div>
 
   <script>
-    const lightbox = document.getElementById('lightbox');
-    const lightboxImg = document.getElementById('lightbox-img');
+    function openLightbox(src, alt) {
+      var lb = document.getElementById('lightbox');
+      var img = document.getElementById('lightbox-img');
+      img.src = src;
+      img.alt = alt;
+      lb.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
 
-    // すべての .step-img にクリックイベントを追加
-    document.querySelectorAll('.step-img').forEach(img => {
-      img.addEventListener('click', () => {
-        lightboxImg.src = img.src;
-        lightboxImg.alt = img.alt;
-        lightbox.classList.add('active');
-        document.body.style.overflow = 'hidden';
-      });
-    });
-
-    // 背景クリックまたは✕ボタンで閉じる
     function closeLightbox() {
-      lightbox.classList.remove('active');
+      document.getElementById('lightbox').style.display = 'none';
       document.body.style.overflow = '';
     }
 
-    lightbox.addEventListener('click', (e) => {
-      if (e.target === lightbox) closeLightbox();
+    document.querySelectorAll('.step-img').forEach(function(img) {
+      img.style.cursor = 'zoom-in';
+      img.addEventListener('click', function() {
+        openLightbox(this.src, this.alt);
+      });
     });
 
-    document.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
-
-    // Escキーでも閉じる
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') closeLightbox();
     });
   </script>
