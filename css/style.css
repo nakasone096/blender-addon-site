@@ -286,6 +286,40 @@ h2::after {
   padding: 12px 0;
 }
 
+.step-link-btn {
+  display: inline-block;
+  padding: 8px 20px;
+  background-color: var(--color-blue);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 6px;
+  text-decoration: none;
+  margin-bottom: 16px;
+  transition: opacity 0.2s;
+}
+
+.step-link-btn:hover {
+  opacity: 0.8;
+}
+
+.step-caution {
+  display: inline-block;
+  margin-top: 8px;
+  color: #ffcc00;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.step-body code {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 13px;
+  color: var(--color-blue);
+}
+
 /* お知らせ */
 .section-news {
   background-color: var(--color-surface);
