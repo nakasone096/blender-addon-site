@@ -157,5 +157,42 @@
     <p><small>&copy; 2025 Daichi Nakasone &nbsp;|&nbsp; Blender 3DCG Tutorial Addon</small></p>
   </footer>
 
+  <!-- ライトボックス -->
+  <div id="lightbox" class="lightbox">
+    <button class="lightbox-close">✕</button>
+    <img id="lightbox-img" src="" alt="">
+  </div>
+
+  <script>
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightbox-img');
+
+    // すべての .step-img にクリックイベントを追加
+    document.querySelectorAll('.step-img').forEach(img => {
+      img.addEventListener('click', () => {
+        lightboxImg.src = img.src;
+        lightboxImg.alt = img.alt;
+        lightbox.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      });
+    });
+
+    // 背景クリックまたは✕ボタンで閉じる
+    function closeLightbox() {
+      lightbox.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    lightbox.addEventListener('click', (e) => {
+      if (e.target === lightbox) closeLightbox();
+    });
+
+    document.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
+
+    // Escキーでも閉じる
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeLightbox();
+    });
+  </script>
 </body>
 </html>

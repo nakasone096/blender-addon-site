@@ -382,6 +382,47 @@ footer small {
   color: var(--color-text-dim);
 }
 
+/* ライトボックス */
+.lightbox {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.85);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightbox.active {
+  display: flex;
+}
+
+.lightbox img {
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 8px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 20px;
+  right: 28px;
+  font-size: 28px;
+  color: #fff;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.lightbox-close:hover {
+  color: var(--color-accent);
+}
+
+.step-img {
+  cursor: zoom-in;
+}
+
 /* レスポンシブ */
 @media (max-width: 768px) {
   .header-inner {
