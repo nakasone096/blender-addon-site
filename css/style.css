@@ -209,6 +209,32 @@ h2::after {
 .card-btn--red  { background-color: var(--color-accent); }
 .card-btn--green { background-color: var(--color-green); }
 
+/* 比較実験セクション */
+.section-desc {
+  max-width: 640px;
+  margin: -24px auto 48px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--color-text-dim);
+  line-height: 1.8;
+}
+
+.section-note {
+  max-width: 640px;
+  margin: 32px auto 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-dim);
+  line-height: 1.7;
+}
+
+.card-btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
 /* 導入手順 */
 .section-install {
   background-color: var(--color-bg);
