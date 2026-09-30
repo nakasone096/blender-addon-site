@@ -28,6 +28,7 @@
             <div class="day-switch" role="radiogroup" aria-label="メニュー">
               <button type="button" class="day-btn" data-day="A" role="radio">A日</button>
               <button type="button" class="day-btn" data-day="B" role="radio">B日</button>
+              <button type="button" class="day-btn" data-day="F" role="radio">フリー</button>
             </div>
           </div>
           <label class="date-field">
@@ -41,6 +42,9 @@
       </div>
 
       <div id="exercise-list"></div>
+      <p id="record-empty" class="muted empty" hidden>「＋ 種目を追加」から今日やる種目を選んでください</p>
+
+      <button type="button" id="add-exercise-btn" class="add-btn">＋ 種目を追加</button>
 
       <div class="save-area">
         <button type="button" id="save-btn" class="primary-btn">記録を保存</button>
@@ -85,11 +89,18 @@
       <p id="history-empty" class="muted empty" hidden>まだ記録がありません</p>
     </section>
 
-    <!-- 設定 -->
+    <!-- 種目・メニュー -->
+    <section id="view-menu" class="view" aria-labelledby="tab-menu">
+      <div id="template-cards"></div>
+      <h2 class="section-title">部位ごとの種目</h2>
+      <div id="catalog-cards"></div>
+    </section>
+
+    <!-- データ -->
     <section id="view-settings" class="view" aria-labelledby="tab-settings">
       <div class="card">
         <h2 class="card-title">データのバックアップ</h2>
-        <p class="muted small">機種変更の前にエクスポートし、新しい端末でインポートしてください。</p>
+        <p class="muted small">機種変更の前にエクスポートし、新しい端末でインポートしてください。種目とA日/B日メニューも一緒に保存されます。</p>
         <p class="small" id="data-count"></p>
         <div class="btn-col">
           <button type="button" id="export-btn" class="primary-btn">JSONをエクスポート</button>
@@ -98,10 +109,6 @@
           <input type="file" id="import-file" accept="application/json,.json" hidden>
         </div>
         <p class="muted small">インポートは既存データに統合されます（同じ記録は上書き）。</p>
-      </div>
-      <div class="card">
-        <h2 class="card-title">メニュー</h2>
-        <div id="menu-info" class="small"></div>
       </div>
       <p class="muted small center" id="app-version"></p>
     </section>
@@ -117,10 +124,44 @@
     <button type="button" role="tab" id="tab-history" data-view="history" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>履歴
     </button>
+    <button type="button" role="tab" id="tab-menu" data-view="menu" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6M6 7v10M18 7v10M21 9v6M6 12h12"/></svg>種目
+    </button>
     <button type="button" role="tab" id="tab-settings" data-view="settings" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg>データ
     </button>
   </nav>
+
+  <!-- 種目を選ぶシート -->
+  <dialog id="picker-dialog" class="sheet">
+    <div class="sheet-head">
+      <h2 id="picker-title">種目を追加</h2>
+      <button type="button" class="icon-btn" data-close aria-label="閉じる">✕</button>
+    </div>
+    <div id="picker-parts" class="part-chips" role="tablist" aria-label="部位"></div>
+    <div id="picker-list" class="picker-list"></div>
+    <button type="button" id="picker-new" class="add-btn">＋ 新しい種目を作る</button>
+  </dialog>
+
+  <!-- 種目の作成・編集 -->
+  <dialog id="exercise-dialog" class="sheet">
+    <form method="dialog" id="exercise-form">
+      <div class="sheet-head">
+        <h2 id="exercise-dialog-title">種目を追加</h2>
+        <button type="button" class="icon-btn" data-close aria-label="閉じる">✕</button>
+      </div>
+      <label class="field">
+        <span class="muted small">種目名</span>
+        <input type="text" id="exercise-name" class="text-in" maxlength="40" autocomplete="off" enterkeyhint="done" required>
+      </label>
+      <div class="field">
+        <span class="muted small">部位</span>
+        <div id="exercise-part" class="part-chips" role="radiogroup" aria-label="部位"></div>
+      </div>
+      <p id="exercise-error" class="error small" hidden></p>
+      <button type="submit" class="primary-btn">保存</button>
+    </form>
+  </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 

@@ -1,6 +1,6 @@
 // アプリ本体をキャッシュしてオフラインで動かす Service Worker
 // ファイルを更新したら CACHE_NAME のバージョンを上げること
-const CACHE_NAME = 'workout-log-v1';
+const CACHE_NAME = 'workout-log-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -15,7 +15,10 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE_NAME)
+    // HTTP キャッシュを通さず最新版を取得する
+    .then((cache) => cache.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' }))))
+   .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
