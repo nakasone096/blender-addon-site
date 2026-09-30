@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
 const INCREMENT_KG = 2.5;
@@ -664,6 +664,7 @@ function renderHistory() {
     el('div', { class: 'hist-head' },
       el('div', {}, el('span', { class: 'hist-date' }, fmtDate(s.date)), el('span', { class: 'day-tag' }, DAY_LABEL[s.day] || s.day)),
       el('div', { class: 'hist-actions' },
+        el('button', { type: 'button', class: 'small-btn', onclick: () => copyText(sessionText(s)) }, 'コピー'),
         el('button', { type: 'button', class: 'small-btn', onclick: () => startEdit(s.id) }, '編集'),
         el('button', { type: 'button', class: 'small-btn danger', onclick: () => deleteSession(s) }, '削除'))),
     s.exercises.map((ex) => el('div', { class: 'hist-ex' },
@@ -863,9 +864,9 @@ function chartHover(clientX) {
 function setupChart() {
   const sel = document.getElementById('chart-exercise');
   sel.addEventListener('change', () => { state.chartExercise = sel.value; renderChart(); });
-  document.querySelectorAll('.seg-btn').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('#view-chart .seg-btn').forEach((b) => b.addEventListener('click', () => {
     state.chartMetric = b.dataset.metric;
-    document.querySelectorAll('.seg-btn').forEach((x) => {
+    document.querySelectorAll('#view-chart .seg-btn').forEach((x) => {
       x.classList.toggle('active', x === b);
       x.setAttribute('aria-checked', String(x === b));
     });
@@ -1000,7 +1001,87 @@ async function importFromFile(file) {
   toast(`${sessions.length}件をインポートしました`);
 }
 
+// ---------- テキストでコピー ----------
+function sessionText(s) {
+  const lines = [`【${fmtDate(s.date)} ${DAY_LABEL[s.day] || ''}】`];
+  for (const ex of s.exercises) {
+    if (!validSets(ex).length) continue;
+    lines.push(`${exName(ex.exerciseId, ex.name)}：${setsText(ex)}${achievedTarget(ex.sets) ? ` ✓（次回+${INCREMENT_KG}kg）` : ''}`);
+  }
+  return lines.join('\n');
+}
+
+function daysAgoStr(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const textRange = { value: 'last' };
+function rangeSessions(range) {
+  if (range === 'last') return state.sessions.slice(-1);
+  if (range === 'all') return state.sessions;
+  const from = daysAgoStr(Number(range) - 1);
+  return state.sessions.filter((s) => s.date >= from);
+}
+
+function rangeText(range) {
+  const list = rangeSessions(range);
+  if (!list.length) return '';
+  if (list.length === 1) return sessionText(list[0]);
+  const head = `筋トレ記録 ${fmtDate(list[0].date, false)}〜${fmtDate(list[list.length - 1].date, false)}（${list.length}回）`;
+  return [head, ...list.map(sessionText)].join('\n\n');
+}
+
+function renderTextPreview() {
+  const text = rangeText(textRange.value);
+  const area = document.getElementById('text-preview');
+  area.value = text || 'この期間の記録はありません';
+  document.getElementById('copy-text-btn').disabled = !text;
+  document.getElementById('share-text-btn').disabled = !text;
+}
+
+async function copyText(text) {
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (_) {
+    // clipboard API が使えない環境向け
+    const ta = el('textarea', { readonly: true, style: 'position:fixed;top:0;left:0;opacity:0' });
+    ta.value = text;
+    document.body.append(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    ta.remove();
+    if (!ok) { toast('コピーできませんでした'); return; }
+  }
+  toast('コピーしました');
+}
+
+function setupTextCopy() {
+  document.querySelectorAll('#text-range .seg-btn').forEach((b) => b.addEventListener('click', () => {
+    textRange.value = b.dataset.range;
+    document.querySelectorAll('#text-range .seg-btn').forEach((x) => {
+      x.classList.toggle('active', x === b);
+      x.setAttribute('aria-checked', String(x === b));
+    });
+    renderTextPreview();
+  }));
+  document.getElementById('copy-text-btn').addEventListener('click', () => copyText(rangeText(textRange.value)));
+  const shareBtn = document.getElementById('share-text-btn');
+  shareBtn.hidden = !navigator.share;
+  shareBtn.addEventListener('click', async () => {
+    try {
+      await navigator.share({ text: rangeText(textRange.value) });
+    } catch (e) {
+      if (e.name !== 'AbortError') toast('共有できませんでした');
+    }
+  });
+}
+
 function renderSettings() {
+  renderTextPreview();
   const n = state.sessions.length;
   const exCount = `種目${activeExercises().length}件`;
   document.getElementById('data-count').textContent = n
@@ -1090,6 +1171,7 @@ async function init() {
   setupRecordControls();
   setupChart();
   setupSettings();
+  setupTextCopy();
   setupDialogs();
 
   try {

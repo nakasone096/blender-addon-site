@@ -99,6 +99,21 @@
     <!-- データ -->
     <section id="view-settings" class="view" aria-labelledby="tab-settings">
       <div class="card">
+        <h2 class="card-title">テキストでコピー</h2>
+        <p class="muted small">友人やトレーナーにメッセージで送るときに使えます。</p>
+        <div class="seg" id="text-range" role="radiogroup" aria-label="期間">
+          <button type="button" class="seg-btn active" data-range="last" role="radio" aria-checked="true">最新1回</button>
+          <button type="button" class="seg-btn" data-range="7" role="radio" aria-checked="false">7日</button>
+          <button type="button" class="seg-btn" data-range="30" role="radio" aria-checked="false">30日</button>
+          <button type="button" class="seg-btn" data-range="all" role="radio" aria-checked="false">全期間</button>
+        </div>
+        <textarea id="text-preview" class="text-preview" rows="9" readonly aria-label="コピーする内容"></textarea>
+        <div class="btn-row">
+          <button type="button" id="copy-text-btn" class="primary-btn">コピー</button>
+          <button type="button" id="share-text-btn" class="secondary-btn" hidden>共有</button>
+        </div>
+      </div>
+      <div class="card">
         <h2 class="card-title">データのバックアップ</h2>
         <p class="muted small">機種変更の前にエクスポートし、新しい端末でインポートしてください。種目とA日/B日メニューも一緒に保存されます。</p>
         <p class="small" id="data-count"></p>
