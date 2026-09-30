@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f5fb0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="筋トレ記録">
+  <title>筋トレ記録</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1 id="header-title">記録</h1>
+  </header>
+
+  <main>
+    <!-- 記録 -->
+    <section id="view-record" class="view active" aria-labelledby="tab-record">
+      <div class="session-bar card">
+        <div class="day-row">
+          <div>
+            <div class="muted small" id="day-auto-label">次のメニュー</div>
+            <div class="day-switch" role="radiogroup" aria-label="メニュー">
+              <button type="button" class="day-btn" data-day="A" role="radio">A日</button>
+              <button type="button" class="day-btn" data-day="B" role="radio">B日</button>
+            </div>
+          </div>
+          <label class="date-field">
+            <span class="muted small">日付</span>
+            <input type="date" id="session-date">
+          </label>
+        </div>
+        <p id="editing-note" class="editing-note" hidden>
+          過去の記録を編集中 <button type="button" id="cancel-edit" class="link-btn">編集をやめる</button>
+        </p>
+      </div>
+
+      <div id="exercise-list"></div>
+
+      <div class="save-area">
+        <button type="button" id="save-btn" class="primary-btn">記録を保存</button>
+      </div>
+    </section>
+
+    <!-- グラフ -->
+    <section id="view-chart" class="view" aria-labelledby="tab-chart">
+      <div class="card">
+        <label class="field">
+          <span class="muted small">種目</span>
+          <select id="chart-exercise"></select>
+        </label>
+        <div class="seg" role="radiogroup" aria-label="指標">
+          <button type="button" class="seg-btn active" data-metric="top" role="radio" aria-checked="true">最大重量</button>
+          <button type="button" class="seg-btn" data-metric="volume" role="radio" aria-checked="false">総挙上量</button>
+        </div>
+      </div>
+      <div class="card chart-card">
+        <div class="chart-head">
+          <div id="chart-title" class="chart-title"></div>
+          <div id="chart-summary" class="muted small"></div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="chart" aria-label="重量推移グラフ" role="img"></canvas>
+          <div id="chart-tip" class="chart-tip" hidden></div>
+        </div>
+        <p id="chart-empty" class="muted empty" hidden>まだ記録がありません</p>
+      </div>
+      <div class="card">
+        <h2 class="card-title">記録一覧</h2>
+        <table class="data-table" id="chart-table">
+          <thead><tr><th>日付</th><th>セット（kg×回）</th><th class="num" id="chart-table-metric">最大</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 履歴 -->
+    <section id="view-history" class="view" aria-labelledby="tab-history">
+      <div id="history-list"></div>
+      <p id="history-empty" class="muted empty" hidden>まだ記録がありません</p>
+    </section>
+
+    <!-- 設定 -->
+    <section id="view-settings" class="view" aria-labelledby="tab-settings">
+      <div class="card">
+        <h2 class="card-title">データのバックアップ</h2>
+        <p class="muted small">機種変更の前にエクスポートし、新しい端末でインポートしてください。</p>
+        <p class="small" id="data-count"></p>
+        <div class="btn-col">
+          <button type="button" id="export-btn" class="primary-btn">JSONをエクスポート</button>
+          <button type="button" id="share-btn" class="secondary-btn" hidden>共有（AirDrop・メール等）</button>
+          <button type="button" id="import-btn" class="secondary-btn">JSONをインポート</button>
+          <input type="file" id="import-file" accept="application/json,.json" hidden>
+        </div>
+        <p class="muted small">インポートは既存データに統合されます（同じ記録は上書き）。</p>
+      </div>
+      <div class="card">
+        <h2 class="card-title">メニュー</h2>
+        <div id="menu-info" class="small"></div>
+      </div>
+      <p class="muted small center" id="app-version"></p>
+    </section>
+  </main>
+
+  <nav class="tabbar" role="tablist">
+    <button type="button" role="tab" id="tab-record" data-view="record" class="active" aria-selected="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"/></svg>記録
+    </button>
+    <button type="button" role="tab" id="tab-chart" data-view="chart" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16M7 15l4-4 3 3 5-6"/></svg>グラフ
+    </button>
+    <button type="button" role="tab" id="tab-history" data-view="history" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>履歴
+    </button>
+    <button type="button" role="tab" id="tab-settings" data-view="settings" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg>データ
+    </button>
+  </nav>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="db.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
