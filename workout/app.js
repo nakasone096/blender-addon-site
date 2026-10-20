@@ -1,9 +1,9 @@
 'use strict';
 
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.2.0';
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
-const INCREMENT_KG = 2.5;
+const INCREMENT_KG = 5;
 const DRAFT_KEY = 'workout-draft-v2';
 
 // 部位（'other' は該当種目があるときだけ表示）
