@@ -100,11 +100,12 @@ main {
 
 /* 記録: セッションバー */
 .day-row { display: flex; flex-direction: column; gap: 10px; }
-.day-switch { display: flex; gap: 6px; margin-top: 2px; }
+.day-switch { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .day-btn {
-  flex: 1; height: 44px; padding: 0 8px; white-space: nowrap;
+  flex: 1 0 calc((100% - 12px) / 3); height: 44px; padding: 0 6px; white-space: nowrap;
   border-radius: 10px; border: 1px solid var(--border);
-  background: var(--surface-2); font-weight: 700; font-size: 17px;
+  background: var(--surface-2); font-weight: 700; font-size: 15px;
+  overflow: hidden; text-overflow: ellipsis;
 }
 .day-btn[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .date-field { display: flex; align-items: center; gap: 10px; }
@@ -208,6 +209,7 @@ main {
 
 /* 種目・メニュー */
 .section-title { font-size: 15px; margin: 20px 2px 8px; color: var(--text-2); }
+.section-title.first { margin-top: 4px; }
 .row-list { list-style: none; margin: 0 0 8px; padding: 0; }
 .row {
   display: flex; align-items: center; gap: 4px; min-height: 44px;
@@ -218,6 +220,10 @@ main {
 .row .icon-btn:disabled { opacity: .3; }
 .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .card-head .card-title { margin: 0; }
+.menu-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--grid); }
+.menu-actions .small-btn:first-child { margin-right: auto; }
+.menu-actions .small-btn:disabled { opacity: .35; }
+.menu-note { margin: 0 2px 10px; }
 .text-btn { background: none; border: 0; color: var(--accent); font-weight: 700; font-size: 14px; padding: 6px 4px; }
 .row-empty { padding: 8px 0; }
 
