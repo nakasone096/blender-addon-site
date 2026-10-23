@@ -25,11 +25,7 @@
         <div class="day-row">
           <div>
             <div class="muted small" id="day-auto-label">次のメニュー</div>
-            <div class="day-switch" role="radiogroup" aria-label="メニュー">
-              <button type="button" class="day-btn" data-day="A" role="radio">A日</button>
-              <button type="button" class="day-btn" data-day="B" role="radio">B日</button>
-              <button type="button" class="day-btn" data-day="F" role="radio">フリー</button>
-            </div>
+            <div class="day-switch" id="day-switch" role="radiogroup" aria-label="メニュー"></div>
           </div>
           <label class="date-field">
             <span class="muted small">日付</span>
@@ -91,6 +87,7 @@
 
     <!-- 種目・メニュー -->
     <section id="view-menu" class="view" aria-labelledby="tab-menu">
+      <h2 class="section-title first">メニュー</h2>
       <div id="template-cards"></div>
       <h2 class="section-title">部位ごとの種目</h2>
       <div id="catalog-cards"></div>
@@ -115,7 +112,7 @@
       </div>
       <div class="card">
         <h2 class="card-title">データのバックアップ</h2>
-        <p class="muted small">機種変更の前にエクスポートし、新しい端末でインポートしてください。種目とA日/B日メニューも一緒に保存されます。</p>
+        <p class="muted small">機種変更の前にエクスポートし、新しい端末でインポートしてください。種目とメニューも一緒に保存されます。</p>
         <p class="small" id="data-count"></p>
         <div class="btn-col">
           <button type="button" id="export-btn" class="primary-btn">JSONをエクスポート</button>

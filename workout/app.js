@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '3.0.0';
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
 const INCREMENT_KG = 5;
@@ -42,17 +42,23 @@ const DEFAULT_EXERCISES = [
   ['ex-leg-curl', 'レッグカール', 'leg'],
   ['ex-calf-raise', 'カーフレイズ', 'leg'],
 ];
-const DEFAULT_TEMPLATES = {
-  A: ['ex-squat', 'ex-bench', 'ex-lat-pulldown', 'ex-curl'],
-  B: ['ex-leg-press', 'ex-shoulder-press', 'ex-seated-row', 'ex-pushdown'],
-};
-const DAY_LABEL = { A: 'A日', B: 'B日', F: 'フリー' };
+// 初期メニュー（5分割）。同じ筋肉が連続しない順番。中身はその部位に登録されている種目
+const DEFAULT_SPLIT = [
+  ['m-chest', '胸の日', 'chest'],
+  ['m-back', '背中の日', 'back'],
+  ['m-leg', '足の日', 'leg'],
+  ['m-shoulder', '肩の日', 'shoulder'],
+  ['m-arm', '腕の日', 'arm'],
+];
+const FREE_DAY = 'F';
+// 旧バージョン（A日/B日）の記録の表示名
+const LEGACY_DAY_LABEL = { A: 'A日', B: 'B日' };
 
 const state = {
   sessions: [],       // 全記録（日付の古い順）
   exercises: [],      // 種目マスタ
-  templates: { A: [], B: [] },
-  day: 'A',
+  menus: [],          // [{ id, name, exerciseIds }]。並び順が自動判定の順番
+  day: FREE_DAY,      // メニュー id または FREE_DAY
   dayOverridden: false,
   date: todayStr(),
   editingId: null,
@@ -128,8 +134,25 @@ function visibleParts() {
 function hasHistory(id) {
   return state.sessions.some((s) => s.exercises.some((e) => e.exerciseId === id && validSets(e).length));
 }
-function templateIds(day) {
-  return (state.templates[day] || []).filter((id) => exById(id) && !exById(id).archived);
+function menuById(id) {
+  return state.menus.find((m) => m.id === id) || null;
+}
+function menuExerciseIds(id) {
+  return (menuById(id)?.exerciseIds || []).filter((x) => exById(x) && !exById(x).archived);
+}
+function dayLabel(day, fallback) {
+  if (day === FREE_DAY) return 'フリー';
+  return menuById(day)?.name || fallback || LEGACY_DAY_LABEL[day] || '';
+}
+function sessionDayLabel(s) {
+  return dayLabel(s.day, s.dayName);
+}
+function defaultMenus(exercises) {
+  return DEFAULT_SPLIT.map(([id, name, part]) => ({
+    id,
+    name,
+    exerciseIds: exercises.filter((e) => !e.archived && e.part === part).sort((a, b) => a.order - b.order).map((e) => e.id),
+  }));
 }
 
 // 種目 id を持たない記録（旧形式など）に、名前で種目を割り当てる。
@@ -159,19 +182,26 @@ function resolveSessionExercises(sessions, exercises) {
 async function ensureCatalog() {
   await DB.run(['sessions', 'exercises', 'meta'], 'readwrite', async (s) => {
     const config = await DB.req(s.meta.get('config'));
-    if (config) return;
-    // 初回起動 or v1 からの移行
-    const exercises = DEFAULT_EXERCISES.map(([id, name, part], i) => ({ id, name, part, order: i, archived: false }));
-    const sessions = await DB.req(s.sessions.getAll());
-    const added = resolveSessionExercises(sessions, exercises);
-    [...exercises, ...added].forEach((e) => s.exercises.put(e));
-    sessions.forEach((x) => s.sessions.put(x));
-    s.meta.put({ key: 'config', templates: DEFAULT_TEMPLATES });
+    if (config && Array.isArray(config.menus)) return;
+    let exercises;
+    if (config) {
+      // v2（A日/B日）からの移行：部位別の5分割メニューに置き換える
+      exercises = await DB.req(s.exercises.getAll());
+    } else {
+      // 初回起動 or v1 からの移行
+      exercises = DEFAULT_EXERCISES.map(([id, name, part], i) => ({ id, name, part, order: i, archived: false }));
+      const sessions = await DB.req(s.sessions.getAll());
+      const added = resolveSessionExercises(sessions, exercises);
+      exercises.push(...added);
+      exercises.forEach((e) => s.exercises.put(e));
+      sessions.forEach((x) => s.sessions.put(x));
+    }
+    s.meta.put({ key: 'config', menus: defaultMenus(exercises) });
   });
 }
 
-async function saveTemplates() {
-  await DB.put('meta', { key: 'config', templates: state.templates });
+async function saveMenus() {
+  await DB.put('meta', { key: 'config', menus: state.menus });
 }
 
 // ---------- 記録ロジック ----------
@@ -200,14 +230,19 @@ function setsText(ex) {
   return sets.map((s) => `${s.weight == null ? '自重' : fmtNum(s.weight)}×${s.reps}`).join(', ');
 }
 
-// 最後の A日/B日 の反対。フリーの日は判定に使わない
+// 一番長くやっていないメニュー（まだ一度もやっていないものがあれば、並び順で先のもの）。
+// 順番どおりに続ければメニューの並び順に回る。フリーの日は判定に使わない
 function nextDay() {
-  for (let i = state.sessions.length - 1; i >= 0; i--) {
-    const d = state.sessions[i].day;
-    if (d === 'A') return 'B';
-    if (d === 'B') return 'A';
+  if (!state.menus.length) return FREE_DAY;
+  const lastIndex = {};
+  state.sessions.forEach((s, i) => { lastIndex[s.day] = i; });
+  let best = state.menus[0];
+  let bestIndex = Infinity;
+  for (const m of state.menus) {
+    const idx = lastIndex[m.id] ?? -1;
+    if (idx < bestIndex) { best = m; bestIndex = idx; }
   }
-  return 'A';
+  return best.id;
 }
 
 // 指定種目の「前回」の記録（編集中の記録は除外、選択日以前で最新）
@@ -230,7 +265,7 @@ function hasAnyInput() {
 }
 function applyDay(day) {
   state.day = day;
-  state.order = day === 'F' ? [] : templateIds(day);
+  state.order = day === FREE_DAY ? [] : menuExerciseIds(day);
   state.inputs = {};
   state.order.forEach((id) => { state.inputs[id] = emptySets(); });
 }
@@ -256,7 +291,9 @@ function loadDraft() {
   try {
     localStorage.removeItem('workout-draft-v1');
     const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
-    if (!d || !DAY_LABEL[d.day] || !Array.isArray(d.order) || !d.inputs) return false;
+    if (!d || typeof d.day !== 'string' || !Array.isArray(d.order) || !d.inputs) return false;
+    // 消えたメニューの下書きは使わない（過去の記録の編集中は除く）
+    if (d.day !== FREE_DAY && !menuById(d.day) && !d.editingId) return false;
     const order = d.order.filter((id) => exById(id));
     Object.assign(state, {
       day: d.day, dayOverridden: !!d.dayOverridden, date: d.date || todayStr(),
@@ -278,20 +315,41 @@ function resetRecordForm() {
 // ---------- 記録画面 ----------
 function renderRecord() {
   const auto = nextDay();
-  document.querySelectorAll('.day-btn').forEach((b) => {
-    b.setAttribute('aria-checked', String(b.dataset.day === state.day));
-  });
+  renderDaySwitch();
   const label = document.getElementById('day-auto-label');
   if (state.editingId) label.textContent = 'メニュー';
-  else label.textContent = state.day === auto ? '次のメニュー（自動）' : `自動判定は${auto}日（手動変更中）`;
+  else label.textContent = state.day === auto ? '次のメニュー（自動）' : `自動判定は${dayLabel(auto)}（手動変更中）`;
 
   document.getElementById('session-date').value = state.date;
   document.getElementById('editing-note').hidden = !state.editingId;
-  document.getElementById('save-btn').textContent = state.editingId ? '変更を保存' : `${DAY_LABEL[state.day]}の記録を保存`;
+  document.getElementById('save-btn').textContent = state.editingId ? '変更を保存' : `${dayLabel(state.day)}の記録を保存`;
   document.getElementById('record-empty').hidden = state.order.length > 0;
 
   const list = document.getElementById('exercise-list');
   list.replaceChildren(...state.order.filter((id) => exById(id)).map(renderExerciseCard));
+}
+
+function renderDaySwitch() {
+  const days = [...state.menus.map((m) => ({ id: m.id, name: m.name })), { id: FREE_DAY, name: 'フリー' }];
+  // 消えたメニュー・A日/B日 の記録を編集中なら、その日も選択肢に出す
+  if (!days.some((d) => d.id === state.day)) {
+    const s = state.sessions.find((x) => x.id === state.editingId);
+    days.unshift({ id: state.day, name: s ? sessionDayLabel(s) : dayLabel(state.day) });
+  }
+  const wrap = document.getElementById('day-switch');
+  wrap.replaceChildren(...days.map((d) => el('button', {
+    type: 'button', class: 'day-btn', role: 'radio', 'aria-checked': String(d.id === state.day),
+    onclick: () => selectDay(d.id),
+  }, d.name)));
+}
+
+function selectDay(day) {
+  if (day === state.day) return;
+  if (hasAnyInput() && !confirm('入力中の内容は破棄されます。切り替えますか？')) return;
+  applyDay(day);
+  state.dayOverridden = state.day !== nextDay();
+  saveDraft();
+  renderRecord();
 }
 
 function renderExerciseCard(exId) {
@@ -413,6 +471,7 @@ async function saveSession() {
     id: existing ? existing.id : genId(),
     date: state.date,
     day: state.day,
+    dayName: existing && state.day === existing.day ? (existing.dayName || sessionDayLabel(existing)) : dayLabel(state.day),
     exercises,
     createdAt: existing ? existing.createdAt : now,
     updatedAt: now,
@@ -570,43 +629,82 @@ function setupDialogs() {
 }
 
 // ---------- 種目・メニュー画面 ----------
+async function setMenus(menus, changedId) {
+  state.menus = menus;
+  await saveMenus();
+  afterMenuChange(changedId);
+}
+function updateMenu(id, patch) {
+  return setMenus(state.menus.map((m) => (m.id === id ? { ...m, ...patch } : m)), id);
+}
+
+async function addMenu() {
+  const name = (prompt('新しいメニューの名前（例：胸の日）') || '').trim();
+  if (!name) return;
+  const menu = { id: genId('m-'), name, exerciseIds: [] };
+  await setMenus([...state.menus, menu], menu.id);
+  toast(`「${name}」を追加しました。種目を追加してください`);
+}
+
+async function renameMenu(m) {
+  const name = (prompt('メニューの名前', m.name) || '').trim();
+  if (!name || name === m.name) return;
+  await updateMenu(m.id, { name });
+}
+
+async function deleteMenu(m) {
+  if (!confirm(`メニュー「${m.name}」を削除しますか？\n過去の記録は残ります。`)) return;
+  await setMenus(state.menus.filter((x) => x.id !== m.id), m.id);
+  toast('削除しました');
+}
+
+function moveMenu(i, d) {
+  const arr = [...state.menus];
+  [arr[i], arr[i + d]] = [arr[i + d], arr[i]];
+  return setMenus(arr, null);
+}
+
 function renderMenu() {
   const tpl = document.getElementById('template-cards');
-  tpl.replaceChildren(...['A', 'B'].map((day) => {
-    const ids = templateIds(day);
-    const setTemplate = async (arr) => {
-      state.templates[day] = arr;
-      await saveTemplates();
-      afterTemplateChange(day);
-    };
+  const cards = state.menus.map((m, mi) => {
+    const ids = menuExerciseIds(m.id);
     const move = (i, d) => {
       const arr = [...ids];
       [arr[i], arr[i + d]] = [arr[i + d], arr[i]];
-      return setTemplate(arr);
+      return updateMenu(m.id, { exerciseIds: arr });
     };
     return el('div', { class: 'card' },
       el('div', { class: 'card-head' },
-        el('h2', { class: 'card-title' }, `${day}日のメニュー`),
+        el('h2', { class: 'card-title' }, m.name, el('span', { class: 'muted small' }, `　${ids.length}種目`)),
         el('button', {
           type: 'button', class: 'text-btn',
           onclick: () => openPicker({
-            title: `${day}日に種目を追加`, excluded: new Set(ids),
+            title: `${m.name}に種目を追加`, excluded: new Set(ids),
             onPick: async (id) => {
-              await setTemplate([...templateIds(day), id]);
-              toast(`${day}日に「${exName(id)}」を追加しました`);
+              await updateMenu(m.id, { exerciseIds: [...menuExerciseIds(m.id), id] });
+              toast(`${m.name}に「${exName(id)}」を追加しました`);
             },
           }),
-        }, '＋ 追加')),
+        }, '＋ 種目')),
       ids.length ? el('ul', { class: 'row-list' }, ids.map((id, i) => el('li', { class: 'row' },
         el('span', { class: 'row-name' }, exName(id), el('span', { class: 'part-tag' }, PART_NAME[exById(id).part])),
         el('button', { type: 'button', class: 'icon-btn', 'aria-label': '上へ', disabled: i === 0, onclick: () => move(i, -1) }, '↑'),
         el('button', { type: 'button', class: 'icon-btn', 'aria-label': '下へ', disabled: i === ids.length - 1, onclick: () => move(i, 1) }, '↓'),
         el('button', {
-          type: 'button', class: 'icon-btn', 'aria-label': `${exName(id)} を${day}日から外す`,
-          onclick: () => setTemplate(ids.filter((x) => x !== id)),
+          type: 'button', class: 'icon-btn', 'aria-label': `${exName(id)} を${m.name}から外す`,
+          onclick: () => updateMenu(m.id, { exerciseIds: ids.filter((x) => x !== id) }),
         }, '✕'))))
-        : el('p', { class: 'muted small row-empty' }, '種目がありません'));
-  }));
+        : el('p', { class: 'muted small row-empty' }, '種目がありません'),
+      el('div', { class: 'menu-actions' },
+        el('button', { type: 'button', class: 'small-btn', onclick: () => renameMenu(m) }, '名前を変更'),
+        el('button', { type: 'button', class: 'small-btn', 'aria-label': `${m.name}の順番を上へ`, disabled: mi === 0, onclick: () => moveMenu(mi, -1) }, '↑'),
+        el('button', { type: 'button', class: 'small-btn', 'aria-label': `${m.name}の順番を下へ`, disabled: mi === state.menus.length - 1, onclick: () => moveMenu(mi, 1) }, '↓'),
+        el('button', { type: 'button', class: 'small-btn danger', onclick: () => deleteMenu(m) }, '削除')));
+  });
+  tpl.replaceChildren(
+    el('p', { class: 'muted small menu-note' }, '次のメニューは「一番長くやっていないもの」を自動で選びます（順番どおりに続ければ、この並び順に回ります）。'),
+    ...cards,
+    el('button', { type: 'button', class: 'add-btn', onclick: addMenu }, '＋ メニューを追加'));
 
   const cat = document.getElementById('catalog-cards');
   cat.replaceChildren(...visibleParts().map((p) => {
@@ -623,10 +721,15 @@ function renderMenu() {
   }));
 }
 
-// テンプレートを変えたら、未入力の記録画面にも反映する
-function afterTemplateChange(day) {
-  if (!state.editingId && state.day === day && !hasAnyInput()) {
-    applyDay(day);
+// メニューを変えたら、未入力の記録画面にも反映する
+function afterMenuChange(menuId) {
+  if (!state.editingId && !hasAnyInput()) {
+    if (!menuById(state.day) && state.day !== FREE_DAY) {
+      state.dayOverridden = false;
+      applyDay(nextDay());
+    } else if (state.day === menuId) {
+      applyDay(menuId);
+    }
     saveDraft();
   }
   renderAll();
@@ -640,14 +743,10 @@ async function deleteExercise(e) {
   if (!confirm(msg)) return;
   if (used) await DB.put('exercises', { ...e, archived: true });
   else await DB.remove('exercises', e.id);
-  let changed = false;
-  for (const day of ['A', 'B']) {
-    if (state.templates[day].includes(e.id)) {
-      state.templates[day] = state.templates[day].filter((x) => x !== e.id);
-      changed = true;
-    }
+  if (state.menus.some((m) => m.exerciseIds.includes(e.id))) {
+    state.menus = state.menus.map((m) => ({ ...m, exerciseIds: m.exerciseIds.filter((x) => x !== e.id) }));
+    await saveMenus();
   }
-  if (changed) await saveTemplates();
   await reloadData();
   // 記録画面からも外す（過去の記録を編集中なら、記録のある種目は残す）
   if (state.order.includes(e.id) && (!used || !state.editingId)) removeFromSession(e.id);
@@ -662,7 +761,7 @@ function renderHistory() {
   document.getElementById('history-empty').hidden = items.length > 0;
   list.replaceChildren(...items.map((s) => el('div', { class: 'card' },
     el('div', { class: 'hist-head' },
-      el('div', {}, el('span', { class: 'hist-date' }, fmtDate(s.date)), el('span', { class: 'day-tag' }, DAY_LABEL[s.day] || s.day)),
+      el('div', {}, el('span', { class: 'hist-date' }, fmtDate(s.date)), el('span', { class: 'day-tag' }, sessionDayLabel(s))),
       el('div', { class: 'hist-actions' },
         el('button', { type: 'button', class: 'small-btn', onclick: () => copyText(sessionText(s)) }, 'コピー'),
         el('button', { type: 'button', class: 'small-btn', onclick: () => startEdit(s.id) }, '編集'),
@@ -674,7 +773,7 @@ function renderHistory() {
 }
 
 async function deleteSession(s) {
-  if (!confirm(`${fmtDate(s.date)} の${DAY_LABEL[s.day] || ''}の記録を削除しますか？`)) return;
+  if (!confirm(`${fmtDate(s.date)} の${sessionDayLabel(s)}の記録を削除しますか？`)) return;
   await DB.remove('sessions', s.id);
   await reloadData();
   if (state.editingId === s.id) resetRecordForm();
@@ -888,10 +987,10 @@ function setupChart() {
 function exportPayload() {
   return {
     app: 'workout-log',
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     exercises: state.exercises,
-    templates: state.templates,
+    menus: state.menus,
     sessions: state.sessions,
   };
 }
@@ -922,7 +1021,7 @@ async function shareExport() {
 function normalizeSession(raw) {
   if (!raw || typeof raw !== 'object') return null;
   if (typeof raw.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw.date)) return null;
-  if (!DAY_LABEL[raw.day]) return null;
+  if (typeof raw.day !== 'string' || !raw.day) return null;
   if (!Array.isArray(raw.exercises)) return null;
   const exercises = raw.exercises
     .filter((e) => e && (typeof e.name === 'string' || typeof e.exerciseId === 'string') && Array.isArray(e.sets))
@@ -938,6 +1037,7 @@ function normalizeSession(raw) {
     id: typeof raw.id === 'string' && raw.id ? raw.id : genId(),
     date: raw.date,
     day: raw.day,
+    ...(typeof raw.dayName === 'string' && raw.dayName ? { dayName: raw.dayName } : {}),
     exercises,
     createdAt: Number(raw.createdAt) || Date.now(),
     updatedAt: Number(raw.updatedAt) || Date.now(),
@@ -967,9 +1067,11 @@ async function importFromFile(file) {
   if (!Array.isArray(rawList)) { toast('このアプリのバックアップ形式ではありません'); return; }
   const sessions = rawList.map(normalizeSession).filter(Boolean);
   const importedExercises = (Array.isArray(data.exercises) ? data.exercises : []).map(normalizeExercise).filter(Boolean);
-  const tpl = data.templates;
-  const importedTemplates = tpl && ['A', 'B'].every((d) => Array.isArray(tpl[d]))
-    ? { A: tpl.A.filter((x) => typeof x === 'string'), B: tpl.B.filter((x) => typeof x === 'string') }
+  // 旧形式（A日/B日）のメニューは取り込まず、今のメニューを残す
+  const importedMenus = Array.isArray(data.menus)
+    ? data.menus
+      .filter((m) => m && typeof m.id === 'string' && typeof m.name === 'string' && m.name.trim())
+      .map((m) => ({ id: m.id, name: m.name.trim(), exerciseIds: (Array.isArray(m.exerciseIds) ? m.exerciseIds : []).filter((x) => typeof x === 'string') }))
     : null;
   if (!sessions.length && !importedExercises.length) { toast('取り込める記録がありませんでした'); return; }
 
@@ -983,14 +1085,14 @@ async function importFromFile(file) {
   const msg = `${sessions.length}件の記録` + (importedExercises.length ? `と${importedExercises.length}件の種目` : '') +
     'をインポートします。' +
     (overwrite ? `\n（うち${overwrite}件は既存の記録を上書き）` : '') +
-    (importedTemplates ? '\nA日/B日のメニューもファイルの内容に置き換わります。' : '') +
+    (importedMenus ? '\nメニューもファイルの内容に置き換わります。' : '') +
     '\nよろしいですか？';
   if (!confirm(msg)) return;
 
   await DB.run(['sessions', 'exercises', 'meta'], 'readwrite', (s) => {
     [...importedExercises, ...added].forEach((e) => s.exercises.put(e));
     sessions.forEach((x) => s.sessions.put(x));
-    if (importedTemplates) s.meta.put({ key: 'config', templates: importedTemplates });
+    if (importedMenus) s.meta.put({ key: 'config', menus: importedMenus });
   });
   await reloadData();
   if (!state.editingId && !hasAnyInput()) {
@@ -1003,7 +1105,7 @@ async function importFromFile(file) {
 
 // ---------- テキストでコピー ----------
 function sessionText(s) {
-  const lines = [`【${fmtDate(s.date)} ${DAY_LABEL[s.day] || ''}】`];
+  const lines = [`【${fmtDate(s.date)} ${sessionDayLabel(s)}】`];
   for (const ex of s.exercises) {
     if (!validSets(ex).length) continue;
     lines.push(`${exName(ex.exerciseId, ex.name)}：${setsText(ex)}${achievedTarget(ex.sets) ? ` ✓（次回+${INCREMENT_KG}kg）` : ''}`);
@@ -1122,18 +1224,10 @@ async function reloadData() {
   ]);
   state.sessions = sortSessions(sessions);
   state.exercises = exercises;
-  state.templates = { A: [], B: [], ...(config?.templates || DEFAULT_TEMPLATES) };
+  state.menus = Array.isArray(config?.menus) ? config.menus : [];
 }
 
 function setupRecordControls() {
-  document.querySelectorAll('.day-btn').forEach((b) => b.addEventListener('click', () => {
-    if (b.dataset.day === state.day) return;
-    if (hasAnyInput() && !confirm('入力中の内容は破棄されます。切り替えますか？')) return;
-    applyDay(b.dataset.day);
-    state.dayOverridden = state.day !== nextDay();
-    saveDraft();
-    renderRecord();
-  }));
   document.getElementById('session-date').addEventListener('change', (e) => {
     state.date = e.target.value || todayStr();
     saveDraft();
