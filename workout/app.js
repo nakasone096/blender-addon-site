@@ -1,9 +1,11 @@
 'use strict';
 
-const APP_VERSION = '3.0.0';
+const APP_VERSION = '3.1.0';
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
-const INCREMENT_KG = 5;
+// 達成したときに増やす重さ（種目ごとに選べる）。初期値は部位で決める
+const INCREMENT_OPTIONS = [1, 2, 2.5, 5];
+const DEFAULT_INCREMENT = { chest: 5, back: 5, leg: 5, shoulder: 2.5, arm: 2.5, other: 2.5 };
 const DRAFT_KEY = 'workout-draft-v2';
 
 // 部位（'other' は該当種目があるときだけ表示）
@@ -131,6 +133,10 @@ function activeExercises(part) {
 function visibleParts() {
   return PARTS.filter((p) => p.id !== 'other' || activeExercises('other').length);
 }
+function incrementFor(exId) {
+  const e = exById(exId);
+  return e?.increment || DEFAULT_INCREMENT[e?.part] || 2.5;
+}
 function hasHistory(id) {
   return state.sessions.some((s) => s.exercises.some((e) => e.exerciseId === id && validSets(e).length));
 }
@@ -208,10 +214,25 @@ async function saveMenus() {
 function validSets(ex) {
   return (ex?.sets || []).filter((s) => s && s.reps != null && s.reps > 0);
 }
-// 4セットすべて10回以上か
+// 4セットとも同じ重さで10回以上できたか
 function achievedTarget(sets) {
   if (!sets || sets.length < SET_COUNT) return false;
-  return sets.slice(0, SET_COUNT).every((s) => s && s.reps != null && s.reps >= TARGET_REPS);
+  const four = sets.slice(0, SET_COUNT);
+  if (!four.every((s) => s && s.reps != null && s.reps >= TARGET_REPS)) return false;
+  return four.every((s) => s.weight === four[0].weight);
+}
+// 次回の目安にする重さ：一番多くのセットで使った重さ（同数なら重い方）
+function workingWeight(ex) {
+  const counts = new Map();
+  for (const s of validSets(ex)) {
+    if (s.weight != null) counts.set(s.weight, (counts.get(s.weight) || 0) + 1);
+  }
+  let best = null;
+  let bestCount = 0;
+  for (const [w, c] of counts) {
+    if (c > bestCount || (c === bestCount && w > best)) { best = w; bestCount = c; }
+  }
+  return best;
 }
 function topWeight(ex) {
   const w = validSets(ex).map((s) => s.weight).filter((x) => x != null);
@@ -357,20 +378,21 @@ function renderExerciseCard(exId) {
   const inputs = state.inputs[exId];
   const prev = previousRecord(exId);
   const prevAchieved = prev ? achievedTarget(prev.ex.sets) : false;
-  const prevTop = prev ? topWeight(prev.ex) : null;
-  const suggested = prevTop == null ? null : prevAchieved ? prevTop + INCREMENT_KG : prevTop;
+  const prevBase = prev ? workingWeight(prev.ex) : null;
+  const inc = incrementFor(exId);
+  const suggested = prevBase == null ? null : prevAchieved ? prevBase + inc : prevBase;
 
   const badgeWrap = el('span', { class: 'badge-wrap' });
   const updateBadge = () => {
     const cur = inputs.map((s) => ({ weight: toNum(s.weight), reps: toNum(s.reps) }));
-    badgeWrap.replaceChildren(achievedTarget(cur) ? el('span', { class: 'badge' }, `✓ 次回+${INCREMENT_KG}kg`) : '');
+    badgeWrap.replaceChildren(achievedTarget(cur) ? el('span', { class: 'badge' }, `✓ 次回+${fmtNum(inc)}kg`) : '');
   };
 
   let prevBox;
   if (prev) {
     prevBox = el('div', { class: 'prev' },
       el('div', {}, '前回 ', el('span', {}, fmtDate(prev.session.date, false)), '： ', el('strong', {}, setsText(prev.ex))),
-      prevAchieved ? el('div', { class: 'hint' }, `前回4セット×${TARGET_REPS}回達成 → 今回 +${INCREMENT_KG}kg（${fmtNum(suggested)}kg）`) : null,
+      prevAchieved ? el('div', { class: 'hint' }, `前回 同じ重さで4セット×${TARGET_REPS}回達成 → 今回 +${fmtNum(inc)}kg（${fmtNum(suggested)}kg）`) : null,
     );
   } else {
     prevBox = el('div', { class: 'prev' }, '前回の記録なし');
@@ -484,11 +506,11 @@ async function saveSession() {
     return;
   }
   await reloadData();
-  const achieved = exercises.filter((e) => achievedTarget(e.sets)).map((e) => e.name);
+  const achieved = exercises.filter((e) => achievedTarget(e.sets)).map((e) => `${e.name} +${fmtNum(incrementFor(e.exerciseId))}kg`);
   resetRecordForm();
   renderAll();
   window.scrollTo({ top: 0 });
-  toast(achieved.length ? `保存しました。${achieved.join('・')} は次回+${INCREMENT_KG}kg！` : '保存しました');
+  toast(achieved.length ? `保存しました。次回アップ：${achieved.join('・')}` : '保存しました');
 }
 
 function startEdit(id) {
@@ -552,11 +574,13 @@ function pick(exId) {
 }
 
 // ---------- 種目の作成・編集ダイアログ ----------
-const exDialog = { resolve: null, editing: null, part: 'chest' };
+const exDialog = { resolve: null, editing: null, part: 'chest', increment: null };
 
 function openExerciseDialog({ exercise = null, part = 'chest' } = {}) {
   exDialog.editing = exercise;
   exDialog.part = exercise ? exercise.part : part;
+  // null のあいだは部位の初期値に従う
+  exDialog.increment = exercise?.increment || null;
   document.getElementById('exercise-dialog-title').textContent = exercise ? '種目を編集' : '種目を追加';
   const nameIn = document.getElementById('exercise-name');
   nameIn.value = exercise ? exercise.name : '';
@@ -573,6 +597,20 @@ function renderExercisePartChips() {
     type: 'button', class: 'chip', role: 'radio', 'aria-checked': String(p.id === exDialog.part),
     onclick: () => { exDialog.part = p.id; renderExercisePartChips(); },
   }, p.name)));
+  renderIncrementChips();
+}
+
+function dialogIncrement() {
+  return exDialog.increment || DEFAULT_INCREMENT[exDialog.part] || 2.5;
+}
+
+function renderIncrementChips() {
+  const wrap = document.getElementById('exercise-increment');
+  const current = dialogIncrement();
+  wrap.replaceChildren(...INCREMENT_OPTIONS.map((n) => el('button', {
+    type: 'button', class: 'chip', role: 'radio', 'aria-checked': String(n === current),
+    onclick: () => { exDialog.increment = n; renderIncrementChips(); },
+  }, `${fmtNum(n)}kg`)));
 }
 
 async function submitExerciseDialog(ev) {
@@ -586,13 +624,13 @@ async function submitExerciseDialog(ev) {
 
   let saved;
   if (exDialog.editing) {
-    saved = { ...exDialog.editing, name, part: exDialog.part };
+    saved = { ...exDialog.editing, name, part: exDialog.part, increment: dialogIncrement() };
   } else if (dup) {
     // 削除済みの同名種目は復活させる（過去の記録とつながる）
-    saved = { ...dup, part: exDialog.part, archived: false };
+    saved = { ...dup, part: exDialog.part, increment: dialogIncrement(), archived: false };
   } else {
     const maxOrder = state.exercises.reduce((m, e) => Math.max(m, e.order || 0), 0);
-    saved = { id: genId('ex-'), name, part: exDialog.part, order: maxOrder + 1, archived: false };
+    saved = { id: genId('ex-'), name, part: exDialog.part, increment: dialogIncrement(), order: maxOrder + 1, archived: false };
   }
   await DB.put('exercises', saved);
   await reloadData();
@@ -714,7 +752,7 @@ function renderMenu() {
         el('h2', { class: 'card-title' }, p.name, el('span', { class: 'muted small' }, `　${items.length}種目`)),
         el('button', { type: 'button', class: 'text-btn', onclick: () => openExerciseDialog({ part: p.id }) }, '＋ 追加')),
       items.length ? el('ul', { class: 'row-list' }, items.map((e) => el('li', { class: 'row' },
-        el('span', { class: 'row-name' }, e.name),
+        el('span', { class: 'row-name' }, e.name, el('span', { class: 'muted small' }, `+${fmtNum(incrementFor(e.id))}kg`)),
         el('button', { type: 'button', class: 'small-btn', onclick: () => openExerciseDialog({ exercise: e }) }, '編集'),
         el('button', { type: 'button', class: 'small-btn danger', onclick: () => deleteExercise(e) }, '削除'))))
         : el('p', { class: 'muted small row-empty' }, '種目がありません'));
@@ -1052,6 +1090,7 @@ function normalizeExercise(raw) {
     part: PART_NAME[raw.part] ? raw.part : 'other',
     order: Number(raw.order) || 0,
     archived: !!raw.archived,
+    ...(Number(raw.increment) > 0 ? { increment: Number(raw.increment) } : {}),
   };
 }
 
@@ -1108,7 +1147,7 @@ function sessionText(s) {
   const lines = [`【${fmtDate(s.date)} ${sessionDayLabel(s)}】`];
   for (const ex of s.exercises) {
     if (!validSets(ex).length) continue;
-    lines.push(`${exName(ex.exerciseId, ex.name)}：${setsText(ex)}${achievedTarget(ex.sets) ? ` ✓（次回+${INCREMENT_KG}kg）` : ''}`);
+    lines.push(`${exName(ex.exerciseId, ex.name)}：${setsText(ex)}${achievedTarget(ex.sets) ? ` ✓（次回+${fmtNum(incrementFor(ex.exerciseId))}kg）` : ''}`);
   }
   return lines.join('\n');
 }
