@@ -42,13 +42,13 @@ const DEFAULT_EXERCISES = [
   ['ex-leg-curl', 'レッグカール', 'leg'],
   ['ex-calf-raise', 'カーフレイズ', 'leg'],
 ];
-// 初期メニュー（5分割）。中身はその部位に登録されている種目
+// 初期メニュー（5分割）。同じ筋肉が連続しない順番。中身はその部位に登録されている種目
 const DEFAULT_SPLIT = [
   ['m-chest', '胸の日', 'chest'],
   ['m-back', '背中の日', 'back'],
+  ['m-leg', '足の日', 'leg'],
   ['m-shoulder', '肩の日', 'shoulder'],
   ['m-arm', '腕の日', 'arm'],
-  ['m-leg', '足の日', 'leg'],
 ];
 const FREE_DAY = 'F';
 // 旧バージョン（A日/B日）の記録の表示名
