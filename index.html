@@ -74,21 +74,26 @@
       <p class="section-desc">
         本研究では、このアドオンと既存の学習方法（動画教材）とで、
         Blenderの操作習得のしやすさを比較する実験を行っています。<br>
-        実施者から案内された方法（A・Bどちらか）に沿って進めてください。
+        実施者から案内された方法（A・Bどちらか）で学習し、<strong>そのあと全員が同じ確認テスト</strong>を受けます。
       </p>
       <div class="card-grid">
 
         <div class="card">
           <div class="card-icon">&#129302;</div>
           <h3>A. アドオン版</h3>
-          <p>このページの「導入手順」に沿ってアドオンをインストールし、参加者IDを入力してチュートリアルを進めてください。</p>
-          <a href="#install" class="card-btn">導入手順を見る</a>
+          <p>① 「導入手順」に沿ってアドオンをインストールし、チュートリアルで学習します。<br>
+          ② 学習後の確認テストのため、記録用アドオンも導入し、「群：アドオン版」で「テスト開始」を押します。</p>
+          <div class="card-btn-group">
+            <a href="#install" class="card-btn">導入手順を見る</a>
+            <a href="https://github.com/nakasone096/blender-comparison-logger" class="card-btn" target="_blank" rel="noopener">記録用アドオンを取得</a>
+          </div>
         </div>
 
         <div class="card">
           <div class="card-icon">&#127909;</div>
           <h3>B. 動画版</h3>
-          <p>下の動画（1:33〜30:41の区間）を見ながら操作してください。あわせて、操作を記録するための専用アドオンを導入してから始めてください。</p>
+          <p>① 記録用アドオンを導入し、「群：動画版」で「計測開始」を押してから、下の動画（1:33〜30:41の区間）を見ながら学習します。<br>
+          ② 学習が終わったら「計測終了」を押し、同じアドオンで「テスト開始」を押して確認テストを受けます。</p>
           <div class="card-btn-group">
             <a href="https://www.youtube.com/watch?v=KxAMC-PRBOU&t=93s" class="card-btn card-btn--red" target="_blank" rel="noopener">動画を見る（1:33〜）</a>
             <a href="https://github.com/nakasone096/blender-comparison-logger" class="card-btn" target="_blank" rel="noopener">記録用アドオンを取得</a>
@@ -97,8 +102,9 @@
 
       </div>
       <p class="section-note">
-        ※どちらの方法で取り組んだ場合も、このページ下部（リンク集）の「アンケートに答える」から回答してください。<br>
-        アンケート冒頭の「今回はどちらの方法で取り組みましたか」で、A（アドオン版）／B（動画版）を選択してください。
+        ※確認テストはヒントなし・資料の持ち込みなしで行います。<br>
+        ※テストが終わったら、このページ上部（リンク集）の「アンケートに答える」から回答してください。
+        アンケート冒頭の「今回はどちらの方法で取り組みましたか」で、A（アドオン版）／B（動画版）を選択します。
       </p>
     </section>
 
@@ -152,35 +158,6 @@
         <div class="step">
           <div class="step-num">4</div>
           <div class="step-body">
-            <h3>ZIPの中の「23DB000_addon」フォルダをコピーする</h3>
-            <p>
-              ZIPファイルを開き（解凍はしない）、
-              中にある「<strong>23DB000_addon</strong>」フォルダをデスクトップにコピーしてください。
-            </p>
-            <img src="step4.png" alt="23DB000_addonフォルダをコピーする画面" class="step-img">
-          </div>
-        </div>
-
-        <div class="step-arrow">▼</div>
-
-        <div class="step">
-          <div class="step-num">5</div>
-          <div class="step-body">
-            <h3>フォルダ名の学籍番号部分を自分のものに変更する</h3>
-            <p>
-              デスクトップにコピーした「23DB000_addon」フォルダを右クリックし、
-              「名前の変更」から<strong>「23DB000」の部分だけ自分の学籍番号</strong>に変更してください（末尾の「_addon」はそのまま残してください）。<br>
-              （例：<code>23DB999_addon</code>）
-            </p>
-            <img src="step5.png" alt="フォルダ名を学籍番号に変更した状態" class="step-img">
-          </div>
-        </div>
-
-        <div class="step-arrow">▼</div>
-
-        <div class="step">
-          <div class="step-num">6</div>
-          <div class="step-body">
             <h3>Blenderの言語を日本語に設定する</h3>
             <p>
               Blenderを起動したら、画面上部の「<strong>Edit（編集）</strong>」→「<strong>Preferences（プリファレンス）</strong>」を開き、
@@ -194,7 +171,7 @@
         <div class="step-arrow">▼</div>
 
         <div class="step">
-          <div class="step-num">7</div>
+          <div class="step-num">5</div>
           <div class="step-body">
             <h3>プリファレンスを開く</h3>
             <p>
@@ -208,7 +185,7 @@
         <div class="step-arrow">▼</div>
 
         <div class="step">
-          <div class="step-num">8</div>
+          <div class="step-num">6</div>
           <div class="step-body">
             <h3>「ディスクからインストール」を開く</h3>
             <p>
@@ -223,7 +200,7 @@
         <div class="step-arrow">▼</div>
 
         <div class="step">
-          <div class="step-num">9</div>
+          <div class="step-num">7</div>
           <div class="step-body">
             <h3>ZIPファイルを選択してインストールする</h3>
             <p>
@@ -238,7 +215,7 @@
         <div class="step-arrow">▼</div>
 
         <div class="step">
-          <div class="step-num">10</div>
+          <div class="step-num">8</div>
           <div class="step-body">
             <h3>アドオンパネルを開いて起動を確認する</h3>
             <p>
@@ -254,33 +231,18 @@
         <div class="step-arrow">▼</div>
 
         <div class="step">
-          <div class="step-num">11</div>
+          <div class="step-num">9</div>
           <div class="step-body">
             <h3>参加者IDに学籍番号を入力する</h3>
             <p>
               Tutorialパネル上部の「<strong>参加者ID</strong>」欄に、
               自分の<strong>学籍番号</strong>を入力してください。<br>
-              （例：<code>23DB999</code>）
+              （例：<code>23DB999</code>）<br>
+              記録の保存先は、デスクトップに「<strong>学籍番号_addon</strong>」フォルダ（例：<code>23DB999_addon</code>）が
+              <strong>自動で作られます</strong>。「ログ保存フォルダ」の欄は<strong>空欄のまま</strong>で構いません。
+              （先に作りたい場合は「フォルダを自動作成」ボタンを押してください）
             </p>
             <img src="step11.png" alt="参加者IDに学籍番号を入力する画面" class="step-img">
-          </div>
-        </div>
-
-        <div class="step-arrow">▼</div>
-
-        <div class="step">
-          <div class="step-num">12</div>
-          <div class="step-body">
-            <h3>ログ保存フォルダを設定する</h3>
-            <p>
-              「<strong>ログ保存フォルダ</strong>」の右にある
-              フォルダアイコンをクリックしてください。<br>
-              ファイルブラウザが開いたら「<strong>デスクトップ</strong>」を開き、
-              先ほど学籍番号に変更したフォルダ（例：<code>23DB999_addon</code>）を開いて、
-              そのまま「<strong>フォルダーを開く</strong>」をクリックしてください。
-            </p>
-            <img src="step12-1.png" alt="ログ保存フォルダを選択する画面" class="step-img">
-            <img src="step12-2.png" alt="フォルダーを開くボタンをクリックする画面" class="step-img">
           </div>
         </div>
 
@@ -337,8 +299,9 @@
             <span class="faq-arrow">▼</span>
           </button>
           <div class="faq-body">
-            <p>デスクトップにコピーして<strong>学籍番号に変更したフォルダ</strong>を選択してください。<br>
-            （例：デスクトップ内の <code>23DB999_addon</code> フォルダ）</p>
+            <p><strong>設定は不要です。</strong>「ログ保存フォルダ」の欄は空欄のまま、参加者IDを入力すれば、<br>
+            デスクトップに「学籍番号_addon」フォルダ（例：<code>23DB999_addon</code>）が自動で作られ、記録が保存されます。<br>
+            ※フォルダ選択ボタン（Blenderのファイルブラウザ）は、環境によってBlenderが落ちるため使わないでください。</p>
           </div>
         </div>
 
@@ -378,12 +341,13 @@
             <span class="faq-arrow">▼</span>
           </button>
           <div class="faq-body">
-            <p>既存のファイルをすべて削除してから、導入手順の<strong>ステップ1〜12</strong>を最初からやり直してください。</p>
-            <p>削除するファイル・フォルダは以下の2つです。</p>
+            <p>古いバージョンを削除してから、導入手順の<strong>ステップ1〜9</strong>を最初からやり直してください。</p>
+            <p>削除するものは以下の2つです。</p>
             <ul>
               <li>デスクトップの <code>purototype_0001-main.zip</code></li>
-              <li>デスクトップの学籍番号フォルダ（例：<code>23DB999_addon</code>）</li>
+              <li>Blenderの「編集」→「プリファレンス」→「アドオン」にある古い「3DCG Tutorial Simulator」（削除ボタン）</li>
             </ul>
+            <p>※デスクトップの「学籍番号_addon」フォルダには記録データが入っているので、<strong>削除しないでください</strong>。</p>
             <p>削除後、<a href="#install">導入手順</a>の最初から進めてください。</p>
           </div>
         </div>
@@ -431,6 +395,25 @@
             </div>
           </div>
           ============================================ -->
+
+        <div class="news-item">
+          <button class="news-header" onclick="toggleNews(this)">
+            <span class="news-date">2026/10/28</span>
+            <span class="news-title">アドオンのver0.8.5をリリース・比較実験の進め方を更新</span>
+            <span class="news-arrow">▼</span>
+          </button>
+          <div class="news-body">
+            <p class="news-patch">パッチノート｜ver0.8.5</p>
+            <p>変更点は以下です</p>
+            <ul>
+              <li>ログ保存フォルダを自動で作成するようにしました（デスクトップに「学籍番号_addon」）。フォルダのコピー・名前変更・選択の手順が不要になり、導入手順を短くしました</li>
+              <li>ログ保存フォルダの選択でBlenderが強制終了することがある問題への対策として、フォルダ選択ボタンを廃止しました</li>
+              <li>ステージの所要時間の計測に誤差が出る不具合を修正しました</li>
+              <li>比較実験は「学習後に全員が同じ確認テストを受ける」方式に変更しました（記録用アドオンもv0.2.0に更新）</li>
+            </ul>
+            <p class="news-thanks">ご協力ありがとうございます。</p>
+          </div>
+        </div>
 
         <div class="news-item">
           <button class="news-header" onclick="toggleNews(this)">
