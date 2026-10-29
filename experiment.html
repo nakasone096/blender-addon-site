@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>比較実験 当日のご案内</title>
+  <link rel="stylesheet" href="css/reset.css">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&display=swap" rel="stylesheet">
+  <noscript><style>.guide-group[hidden]{display:block !important}.guide-selector{display:none}</style></noscript>
+</head>
+<body>
+
+  <header>
+    <div class="header-inner">
+      <p class="site-title">比較実験 当日のご案内</p>
+      <nav>
+        <ul>
+          <li><a href="index.html#compare">ホームへ戻る</a></li>
+          <li><a href="#flow">流れ</a></li>
+          <li><a href="#learn">学習</a></li>
+          <li><a href="#test">確認テスト</a></li>
+          <li><a href="#finish">終了後</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+
+    <section class="hero hero--small">
+      <div class="hero-inner">
+        <h1>比較実験<br>当日のご案内</h1>
+        <p class="hero-sub">ご協力ありがとうございます。<br>所要時間の目安は<strong>約60分</strong>です。<br>この画面を見ながら、実施者の案内に沿って進めてください。</p>
+      </div>
+    </section>
+
+    <!-- 全体の流れ -->
+    <section id="flow" class="section-links">
+      <h2>全体の流れ</h2>
+      <ol class="flow-list">
+        <li><span class="flow-time">準備</span><div><strong>参加者IDの入力</strong><p>学籍番号を入力します。ログを保存するフォルダは自動で作られます。</p></div></li>
+        <li><span class="flow-time">30分</span><div><strong>学習</strong><p>実施者から案内された方法（アドオン版／動画版）でBlenderの基本操作を学びます。</p></div></li>
+        <li><span class="flow-time">約15分</span><div><strong>確認テスト</strong><p>学んだことを覚えているかを確かめます。どちらの方式の方も、同じテストを受けます。</p></div></li>
+        <li><span class="flow-time">約10分</span><div><strong>ログの提出とアンケート</strong><p>フォルダをZIPにまとめ、アンケートに回答して、最後の質問でZIPをアップロードします。</p></div></li>
+      </ol>
+    </section>
+
+    <!-- お願い -->
+    <section id="rules" class="section-install">
+      <h2>はじめに（大切なお願い）</h2>
+      <div class="note-box">
+        <ul>
+          <li><strong>評価の対象は、あなたではなく「教材」です。</strong>できなくても問題ありません。分からないときは分からないままで大丈夫です。</li>
+          <li>学習は<strong>30分</strong>で終わりです。教材を最後まで終えられなくても構いません。早く終わったときは、同じ教材を復習してください。</li>
+          <li>学習中、実施者は操作のお手伝いをしません。自分のペースで進めてください（方式ごとの条件をそろえるためです）。</li>
+          <li>確認テストでは、<strong>ヒントも資料も使いません</strong>。動画やアドオンの画面は閉じます。</li>
+          <li>途中でやめたくなったときは、いつでも中断できます。</li>
+          <li>記録されるのは、参加者ID（学籍番号）・操作の種類・時間・Undoの回数などです。<strong>お名前は記録されません</strong>。データは研究目的以外には使いません。</li>
+          <li>Blenderが固まった・落ちたときは、操作を続けず、実施者に知らせてください。</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 学習 -->
+    <section id="learn" class="section-links">
+      <h2>学習（30分）</h2>
+
+      <div class="guide-selector" id="selector">
+        <p class="section-desc">あなたの学習方法を選んでください（実施者に確認してください）。</p>
+        <div class="guide-btns">
+          <button type="button" class="guide-btn" data-g="addon">A. アドオン版</button>
+          <button type="button" class="guide-btn guide-btn--red" data-g="video">B. 動画版</button>
+        </div>
+      </div>
+
+      <!-- A. アドオン版 -->
+      <div class="guide-group" id="g-addon" hidden>
+        <div class="group-title">A. アドオン版の手順</div>
+        <div class="install-flow">
+
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <h3>Blenderを起動し、「Tutorial」タブを開く</h3>
+              <p>3Dビューの右側のサイドバー（開いていないときは、3Dビューにマウスを置いて <code>N</code> キー）に、「Tutorial」というタブがあります。</p>
+              <p>タブが無いときは、実施者に知らせてください（アドオンのインストールが済んでいない可能性があります。<a href="index.html#install">導入手順</a>）。</p>
+            </div>
+          </div>
+          <div class="step-arrow">▼</div>
+
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <h3>参加者IDを入力する</h3>
+              <p>「参加者ID」の欄に、<strong>学籍番号</strong>を入力します。難易度は変更せず、<code>NORMAL</code> のままにしてください。</p>
+              <p>ログを保存するフォルダは、デスクトップに「学籍番号_addon」という名前で自動で作られます。ログ保存先の欄は、空欄のままにしてください。</p>
+            </div>
+          </div>
+          <div class="step-arrow">▼</div>
+
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <h3>「セットアップ」→「監視開始」を押す</h3>
+              <p>この順に押すと、第1章から始まります。ここで<strong>30分のタイマーが始まります</strong>（実施者が計ります）。</p>
+              <p>課題をクリアすると「次へ」を押して進めます。分からないときは、画面のヒントを使って構いません。</p>
+            </div>
+          </div>
+          <div class="step-arrow">▼</div>
+
+          <div class="step step--complete">
+            <div class="step-num step-num--complete">✓</div>
+            <div class="step-body">
+              <h3>30分で終了</h3>
+              <p>実施者が合図したら、学習は終わりです。途中でも止めてください。第6章まで終わった場合は、30分になるまで復習してください。</p>
+              <p>このあと、実施者の指示でチュートリアルアドオンをオフにします。次は<a href="#test">確認テスト</a>です。</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- B. 動画版 -->
+      <div class="guide-group" id="g-video" hidden>
+        <div class="group-title group-title--red">B. 動画版の手順</div>
+        <div class="install-flow">
+
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <h3>Blenderを起動し、「Logger」タブを開く</h3>
+              <p>3Dビューの右側のサイドバー（開いていないときは、3Dビューにマウスを置いて <code>N</code> キー）に、「Logger」というタブがあります。</p>
+              <p>タブが無いときは、実施者に知らせてください。</p>
+            </div>
+          </div>
+          <div class="step-arrow">▼</div>
+
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <h3>参加者IDを入力し、群を選ぶ</h3>
+              <p>「参加者ID」の欄に<strong>学籍番号</strong>を入力し、「群」を<code>動画版</code>にしてください。</p>
+              <p>ログを保存するフォルダは、デスクトップに「学籍番号_video」という名前で自動で作られます。ログ保存先の欄は、空欄のままにしてください。</p>
+            </div>
+          </div>
+          <div class="step-arrow">▼</div>
+
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <h3>「計測開始」を押して、動画を見ながら学習する</h3>
+              <p>「計測開始」を押すと、<strong>30分のタイマーが始まります</strong>（実施者が計ります）。続けて、下のボタンから動画を<strong>1分33秒</strong>から再生します。</p>
+              <a href="https://www.youtube.com/watch?v=KxAMC-PRBOU&t=93s" class="step-link-btn step-link-btn--red" target="_blank" rel="noopener">動画を開く（1:33〜）</a>
+              <p>見るのは <strong>1:33〜30:41</strong> の区間です。30:41以降（ライティング・カメラ・レンダリング）は見なくて構いません。動画を見ながらBlenderで一緒に操作してください。一時停止・巻き戻しは自由です。</p>
+              <p><span class="step-caution">動画の概要欄にあるショートカット一覧の画像は、使わないでください。</span></p>
+            </div>
+          </div>
+          <div class="step-arrow">▼</div>
+
+          <div class="step step--complete">
+            <div class="step-num step-num--complete">✓</div>
+            <div class="step-body">
+              <h3>30分で終了</h3>
+              <p>実施者が合図したら、「計測終了」を押して学習を終えます。動画が最後まで終わっていなくても、そこで止めてください。動画が先に終わった場合は、30分になるまで復習してください。</p>
+              <p>そのあと、動画を開いているブラウザのタブ・ウィンドウを<strong>閉じてください</strong>。次は<a href="#test">確認テスト</a>です。</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 確認テスト -->
+    <section id="test" class="section-install">
+      <h2>確認テスト（両方式 共通）</h2>
+      <div class="install-flow">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>「Logger」タブで確認する</h3>
+            <p>「参加者ID」に学籍番号が入っていること、「群」が自分の方式（アドオン版の方は<code>アドオン版</code>、動画版の方は<code>動画版</code>）になっていることを確認します。ログ保存先の欄は空欄のままです。</p>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>「テスト開始」を押す</h3>
+            <p>課題が、パネルに<strong>1問ずつ</strong>表示されます。最初は、練習の課題です。その後、課題1から課題6、最後に総合課題の順に進みます。</p>
+            <p>各課題の最初に、立方体が自動で用意されます。学習中に作ったものは消えます。</p>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>課題に取り組む</h3>
+            <ul class="plain-list">
+              <li>課題の条件を満たすと、自動で<code>✓ 完了</code>と表示されます。「次の課題へ」を押して進みます。</li>
+              <li>各課題には<strong>制限時間</strong>があります。残り時間がパネルに表示されます。時間になると、自動で終了します。</li>
+              <li>分からないときは、<code>分からない（次へ）</code>を押して飛ばして構いません。</li>
+              <li>立方体を消してしまったときなどは、<code>シーンをやり直す</code>を押すと、最初の状態に戻ります。</li>
+              <li>課題には、操作の名前（コマンド名）は書かれていません。学習したことを思い出して、自分のやり方で達成してください。</li>
+              <li>ヒントや資料はありません。実施者も答えられません。</li>
+            </ul>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+
+        <div class="step step--complete">
+          <div class="step-num step-num--complete">✓</div>
+          <div class="step-body">
+            <h3>最後に「テストを終了する」を押す</h3>
+            <p>終了すると「お疲れさまでした！」というメッセージが出ます。表示される手順に沿って、次の「終了後」へ進んでください。</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 終了後 -->
+    <section id="finish" class="section-links">
+      <h2>終了後</h2>
+      <div class="install-flow">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>ログのフォルダを ZIP にする</h3>
+            <p>デスクトップにある<strong>「学籍番号_addon」または「学籍番号_video」</strong>という名前のフォルダを、フォルダのまま ZIP に圧縮します。</p>
+            <p>フォルダを右クリックして、「ZIPファイルに圧縮」を選びます（Windows 10 では「送る」→「圧縮（zip形式）フォルダー」）。</p>
+            <p>フォルダの名前は、変えないでください（ZIPのファイル名にそのまま使われ、どちらの方式かを区別するために必要です）。</p>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>アンケートに回答する</h3>
+            <p>5〜10分ほどです。最初の方の質問で、「今回はどちらの方法で取り組みましたか」に、自分の方式（アドオン版／動画版）を選びます。</p>
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSeJ79lM91DXVlX6z2d2Lww4Yn3WJZIJxA9YzETv6QHorv9gXg/viewform" class="step-link-btn step-link-btn--green" target="_blank" rel="noopener">アンケートを開く</a>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+
+        <div class="step step--complete">
+          <div class="step-num step-num--complete">✓</div>
+          <div class="step-body">
+            <h3>最後の質問で ZIP をアップロードする</h3>
+            <p>アンケートの最後に、「操作ログファイルを圧縮してアップロード」という質問があります。①でつくった ZIP ファイルを選んで、アップロードしてから、送信してください。</p>
+            <p>これで終了です。ご協力ありがとうございました。</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <small>&copy; 2026 Blender 3DCG チュートリアル アドオン（卒業研究）</small>
+  </footer>
+
+  <script>
+    (function () {
+      var groups = { addon: document.getElementById('g-addon'), video: document.getElementById('g-video') };
+      var selector = document.getElementById('selector');
+      function show(g) {
+        if (!groups[g]) return;
+        groups.addon.hidden = (g !== 'addon');
+        groups.video.hidden = (g !== 'video');
+        selector.style.display = 'none';
+      }
+      var buttons = document.querySelectorAll('.guide-btn');
+      for (var i = 0; i < buttons.length; i++) {
+        buttons[i].addEventListener('click', function () { show(this.getAttribute('data-g')); });
+      }
+      var m = location.search.match(/[?&]g=(addon|video)/);
+      if (m) show(m[1]);
+    })();
+  </script>
+</body>
+</html>

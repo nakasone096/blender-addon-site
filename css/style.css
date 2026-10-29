@@ -690,3 +690,156 @@ footer small {
     padding-left: 18px;
   }
 }
+
+/* 当日の案内ページ */
+.hero--small {
+  padding: 72px 24px 56px;
+}
+
+.flow-list {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  counter-reset: flow;
+}
+
+.flow-list li {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 20px 24px;
+}
+
+.flow-time {
+  flex-shrink: 0;
+  min-width: 84px;
+  text-align: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background-color: var(--color-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.flow-list strong {
+  display: block;
+  font-size: 16px;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.flow-list p {
+  font-size: 14px;
+  color: var(--color-text-dim);
+  line-height: 1.7;
+}
+
+.note-box {
+  max-width: 720px;
+  margin: 0 auto;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 24px 32px;
+}
+
+.note-box ul,
+.plain-list {
+  list-style: disc;
+  padding-left: 20px;
+}
+
+.note-box li,
+.plain-list li {
+  font-size: 14px;
+  color: var(--color-text-dim);
+  line-height: 1.8;
+  margin-bottom: 8px;
+}
+
+.note-box li strong {
+  color: #fff;
+}
+
+.guide-selector {
+  text-align: center;
+}
+
+.guide-selector .section-desc {
+  margin-bottom: 24px;
+}
+
+.guide-btns {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.guide-btn {
+  padding: 16px 40px;
+  background-color: var(--color-blue);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: opacity 0.2s;
+}
+
+.guide-btn:hover {
+  opacity: 0.85;
+}
+
+.guide-btn--red {
+  background-color: var(--color-accent);
+}
+
+.group-title {
+  max-width: 720px;
+  margin: 0 auto 24px;
+  padding: 10px 20px;
+  border-left: 6px solid var(--color-blue);
+  background-color: var(--color-bg);
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.group-title--red {
+  border-left-color: var(--color-accent);
+}
+
+.step-link-btn--red {
+  background-color: var(--color-accent);
+}
+
+.step-link-btn--green {
+  background-color: var(--color-green);
+}
+
+.step-body .plain-list li {
+  color: var(--color-text-dim);
+}
+
+@media (max-width: 768px) {
+  .flow-list li {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .note-box {
+    padding: 20px 18px;
+  }
+}
+
+.guide-group[hidden] {
+  display: none;
+}
