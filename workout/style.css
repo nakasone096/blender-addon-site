@@ -256,6 +256,28 @@ main {
 }
 .error { color: var(--danger); margin: 0 0 10px; }
 
+/* BIG3・自己ベスト */
+.big3-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 8px 0; border-bottom: 1px solid var(--grid);
+}
+.big3-label { font-weight: 700; }
+.big3-val { text-align: right; }
+.big3-num { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.big3-total { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 0 8px; font-weight: 700; }
+.meter { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.meter-fill { height: 100%; border-radius: 999px; background: var(--accent); }
+.big3-goal { margin-top: 6px; color: var(--text-2); }
+.big3-note { margin: 8px 0 0; }
+.data-table .group-row td { padding-top: 12px; font-weight: 700; color: var(--text-2); border-bottom: 0; }
+.data-table .pr-row { cursor: pointer; }
+.data-table .pr-row:active { background: var(--surface-2); }
+.data-table .num .muted { font-size: 11px; }
+.pr-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.pr-item { padding: 10px 12px; border-radius: 10px; background: var(--good-soft); }
+.pr-name { font-weight: 700; margin-bottom: 2px; }
+.pr-line { color: var(--good); font-weight: 700; font-variant-numeric: tabular-nums; }
+
 /* 履歴 */
 .hist-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .hist-date { font-weight: 700; }

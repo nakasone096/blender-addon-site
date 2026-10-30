@@ -49,6 +49,13 @@
 
     <!-- グラフ -->
     <section id="view-chart" class="view" aria-labelledby="tab-chart">
+      <div class="card" id="big3-card">
+        <div class="card-head">
+          <h2 class="card-title">BIG3</h2>
+          <button type="button" class="text-btn" id="big3-edit">設定</button>
+        </div>
+        <div id="big3-body"></div>
+      </div>
       <div class="card">
         <label class="field">
           <span class="muted small">種目</span>
@@ -56,6 +63,7 @@
         </label>
         <div class="seg" role="radiogroup" aria-label="指標">
           <button type="button" class="seg-btn active" data-metric="top" role="radio" aria-checked="true">最大重量</button>
+          <button type="button" class="seg-btn" data-metric="e1rm" role="radio" aria-checked="false">推定MAX</button>
           <button type="button" class="seg-btn" data-metric="volume" role="radio" aria-checked="false">総挙上量</button>
         </div>
       </div>
@@ -76,6 +84,15 @@
           <thead><tr><th>日付</th><th>セット（kg×回）</th><th class="num" id="chart-table-metric">最大</th></tr></thead>
           <tbody></tbody>
         </table>
+      </div>
+      <div class="card">
+        <h2 class="card-title">自己ベスト一覧</h2>
+        <p class="muted small">推定MAXは、重さと回数から「1回なら何kg挙がるか」を計算した値です（12回以下のセットから計算）。種目をタップするとグラフに表示します。</p>
+        <table class="data-table" id="pr-table">
+          <thead><tr><th>種目</th><th class="num">最高重量</th><th class="num">推定MAX</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p id="pr-empty" class="muted empty" hidden>まだ記録がありません</p>
       </div>
     </section>
 
@@ -175,6 +192,43 @@
         <div id="exercise-increment" class="part-chips" role="radiogroup" aria-label="増やす重さ"></div>
       </div>
       <p id="exercise-error" class="error small" hidden></p>
+      <button type="submit" class="primary-btn">保存</button>
+    </form>
+  </dialog>
+
+  <!-- 自己ベスト更新 -->
+  <dialog id="pr-dialog" class="sheet">
+    <div class="sheet-head">
+      <h2>🎉 自己ベスト更新！</h2>
+      <button type="button" class="icon-btn" data-close aria-label="閉じる">✕</button>
+    </div>
+    <div id="pr-list" class="pr-list"></div>
+    <button type="button" class="primary-btn" data-close>OK</button>
+  </dialog>
+
+  <!-- BIG3 の設定 -->
+  <dialog id="big3-dialog" class="sheet">
+    <form method="dialog" id="big3-form">
+      <div class="sheet-head">
+        <h2>BIG3の設定</h2>
+        <button type="button" class="icon-btn" data-close aria-label="閉じる">✕</button>
+      </div>
+      <label class="field">
+        <span class="muted small">スクワットに使う種目</span>
+        <select id="big3-squat"></select>
+      </label>
+      <label class="field">
+        <span class="muted small">ベンチプレスに使う種目</span>
+        <select id="big3-bench"></select>
+      </label>
+      <label class="field">
+        <span class="muted small">デッドリフトに使う種目</span>
+        <select id="big3-deadlift"></select>
+      </label>
+      <label class="field">
+        <span class="muted small">合計の目標（kg）</span>
+        <input type="text" id="big3-goal" class="text-in" inputmode="decimal" autocomplete="off">
+      </label>
       <button type="submit" class="primary-btn">保存</button>
     </form>
   </dialog>
