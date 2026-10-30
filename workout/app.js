@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '3.1.0';
+const APP_VERSION = '3.2.0';
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
 // 達成したときに増やす重さ（種目ごとに選べる）。初期値は部位で決める
@@ -68,6 +68,7 @@ const state = {
   inputs: {},         // { 種目id: [{weight:'', reps:''} x4] }
   chartExercise: null,
   chartMetric: 'top',
+  big3: null,         // { squat, bench, deadlift: 種目id, goal: kg }
   pickerPart: 'chest',
 };
 
@@ -507,10 +508,12 @@ async function saveSession() {
   }
   await reloadData();
   const achieved = exercises.filter((e) => achievedTarget(e.sets)).map((e) => `${e.name} +${fmtNum(incrementFor(e.exerciseId))}kg`);
+  const prs = sessionPRs(session);
   resetRecordForm();
   renderAll();
   window.scrollTo({ top: 0 });
   toast(achieved.length ? `保存しました。次回アップ：${achieved.join('・')}` : '保存しました');
+  if (prs.length) showPRDialog(prs);
 }
 
 function startEdit(id) {
@@ -820,14 +823,205 @@ async function deleteSession(s) {
   toast('削除しました');
 }
 
+// ---------- 自己ベスト ----------
+const E1RM_MAX_REPS = 12; // 13回以上のセットは推定の誤差が大きいので、推定MAXに使わない
+const BIG3_LIFTS = [
+  ['squat', 'スクワット'],
+  ['bench', 'ベンチプレス'],
+  ['deadlift', 'デッドリフト'],
+];
+const DEFAULT_BIG3 = { squat: 'ex-squat', bench: 'ex-bench', deadlift: 'ex-deadlift', goal: 300 };
+
+function roundHalf(x) {
+  return Math.round(x * 2) / 2;
+}
+// 推定MAX（Epley式）：重さ ×（1 + 回数 / 30）。1回ならその重さ
+function e1rm(weight, reps) {
+  return reps === 1 ? weight : roundHalf(weight * (1 + reps / 30));
+}
+function bestE1RM(ex) {
+  let best = null;
+  for (const s of validSets(ex)) {
+    if (!s.weight || s.reps > E1RM_MAX_REPS) continue;
+    const v = e1rm(s.weight, s.reps);
+    if (best == null || v > best) best = v;
+  }
+  return best;
+}
+
+// 種目の自己ベスト（excludeId の記録は含めない）
+function personalBests(exId, excludeId) {
+  const pb = { weight: null, weightDate: null, e1rm: null, e1rmDate: null, repsAt: new Map() };
+  for (const s of state.sessions) {
+    if (s.id === excludeId) continue;
+    const ex = s.exercises.find((e) => e.exerciseId === exId);
+    if (!ex) continue;
+    for (const set of validSets(ex)) {
+      if (set.weight == null) continue;
+      if (pb.weight == null || set.weight > pb.weight) { pb.weight = set.weight; pb.weightDate = s.date; }
+      if (set.reps > (pb.repsAt.get(set.weight) || 0)) pb.repsAt.set(set.weight, set.reps);
+      if (set.weight > 0 && set.reps <= E1RM_MAX_REPS) {
+        const v = e1rm(set.weight, set.reps);
+        if (pb.e1rm == null || v > pb.e1rm) { pb.e1rm = v; pb.e1rmDate = s.date; }
+      }
+    }
+  }
+  return pb;
+}
+
+// 保存した記録で更新した自己ベスト。初めての種目は対象外
+function sessionPRs(session) {
+  const result = [];
+  for (const ex of session.exercises) {
+    const before = personalBests(ex.exerciseId, session.id);
+    if (before.weight == null) continue;
+    const items = [];
+    const top = topWeight(ex);
+    if (top != null && top > before.weight) items.push(`最高重量 ${fmtNum(top)}kg（+${fmtNum(top - before.weight)}kg）`);
+    const best = bestE1RM(ex);
+    if (best != null && before.e1rm != null && best > before.e1rm) items.push(`推定MAX ${fmtNum(best)}kg（+${fmtNum(best - before.e1rm)}kg）`);
+    if (!items.length) {
+      // 同じ重さでの回数の更新（一番重いもの）
+      let rep = null;
+      for (const set of validSets(ex)) {
+        if (set.weight == null) continue;
+        const prev = before.repsAt.get(set.weight);
+        if (prev != null && set.reps > prev && (!rep || set.weight > rep.weight)) rep = { weight: set.weight, reps: set.reps, prev };
+      }
+      if (rep) items.push(`${fmtNum(rep.weight)}kg × ${rep.reps}回（前は${rep.prev}回）`);
+    }
+    if (items.length) result.push({ name: exName(ex.exerciseId, ex.name), items });
+  }
+  return result;
+}
+
+function showPRDialog(prs) {
+  document.getElementById('pr-list').replaceChildren(...prs.map((p) => el('div', { class: 'pr-item' },
+    el('div', { class: 'pr-name' }, p.name),
+    p.items.map((t) => el('div', { class: 'pr-line' }, t)))));
+  document.getElementById('pr-dialog').showModal();
+}
+
+function big3Stats() {
+  return BIG3_LIFTS.map(([key, label]) => {
+    const exId = state.big3[key];
+    const pb = exId && exById(exId) ? personalBests(exId, null) : null;
+    return { key, label, exId, name: exId && exById(exId) ? exName(exId) : null, e1rm: pb?.e1rm ?? null, weight: pb?.weight ?? null };
+  });
+}
+
+function renderBig3() {
+  const stats = big3Stats();
+  const total = stats.reduce((t, s) => t + (s.e1rm || 0), 0);
+  const goal = state.big3.goal || 0;
+  const pct = goal ? Math.min(100, (total / goal) * 100) : 0;
+  const missing = stats.filter((s) => s.e1rm == null).map((s) => s.label);
+  document.getElementById('big3-body').replaceChildren(
+    ...stats.map((s) => el('div', { class: 'big3-row' },
+      el('div', {},
+        el('div', { class: 'big3-label' }, s.label),
+        el('div', { class: 'muted small' }, s.name ? (s.name !== s.label ? s.name : '') : '種目が未設定')),
+      el('div', { class: 'big3-val' },
+        el('div', { class: 'big3-num' }, s.e1rm != null ? `${fmtNum(s.e1rm)}kg` : '—'),
+        el('div', { class: 'muted small' }, s.weight != null ? `最高 ${fmtNum(s.weight)}kg` : '記録なし')))),
+    el('div', { class: 'big3-total' },
+      el('span', {}, '合計（推定MAX）'),
+      el('span', { class: 'big3-num' }, `${fmtNum(total)}kg`)),
+    goal ? el('div', {
+      class: 'meter', role: 'progressbar', 'aria-label': 'BIG3の目標までの進み具合',
+      'aria-valuemin': '0', 'aria-valuemax': String(goal), 'aria-valuenow': String(total),
+    }, el('div', { class: 'meter-fill', style: `width:${pct}%` })) : null,
+    el('div', { class: 'big3-goal small' },
+      goal ? (total >= goal ? `🎉 目標 ${fmtNum(goal)}kg 達成！` : `目標 ${fmtNum(goal)}kg まで あと ${fmtNum(goal - total)}kg`) : '目標は未設定です'),
+    missing.length ? el('p', { class: 'muted small big3-note' }, `${missing.join('・')}はまだ記録がありません（${E1RM_MAX_REPS}回以下のセットから計算します）`) : null);
+}
+
+function renderPRTable() {
+  const tbody = document.querySelector('#pr-table tbody');
+  const rows = [];
+  for (const p of PARTS) {
+    const items = state.exercises
+      .filter((e) => e.part === p.id)
+      .map((e) => ({ e, pb: personalBests(e.id, null) }))
+      .filter((x) => x.pb.weight != null)
+      .sort((a, b) => a.e.order - b.e.order);
+    if (!items.length) continue;
+    rows.push(el('tr', { class: 'group-row' }, el('td', { colspan: '3' }, p.name)));
+    for (const { e, pb } of items) {
+      rows.push(el('tr', {
+        class: 'pr-row', tabindex: '0',
+        onclick: () => {
+          state.chartExercise = e.id;
+          document.getElementById('chart-exercise').value = e.id;
+          renderChart();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        },
+      },
+      el('td', {}, e.name),
+      el('td', { class: 'num' }, `${fmtNum(pb.weight)}kg`, el('div', { class: 'muted small' }, fmtDate(pb.weightDate, false))),
+      el('td', { class: 'num' }, pb.e1rm != null ? `${fmtNum(pb.e1rm)}kg` : '—', pb.e1rm != null ? el('div', { class: 'muted small' }, fmtDate(pb.e1rmDate, false)) : null)));
+    }
+  }
+  document.getElementById('pr-empty').hidden = rows.length > 0;
+  tbody.replaceChildren(...rows);
+}
+
+function renderStats() {
+  renderBig3();
+  renderPRTable();
+}
+
+async function saveBig3(big3) {
+  state.big3 = big3;
+  await DB.put('meta', { key: 'big3', ...big3 });
+}
+
+function openBig3Dialog() {
+  const withData = new Set();
+  state.sessions.forEach((s) => s.exercises.forEach((e) => withData.add(e.exerciseId)));
+  for (const [key] of BIG3_LIFTS) {
+    const sel = document.getElementById(`big3-${key}`);
+    const groups = PARTS.map((p) => {
+      const items = state.exercises
+        .filter((e) => e.part === p.id && (!e.archived || withData.has(e.id)))
+        .sort((a, b) => a.order - b.order);
+      return items.length ? el('optgroup', { label: p.name }, items.map((e) => el('option', { value: e.id }, e.name))) : null;
+    }).filter(Boolean);
+    sel.replaceChildren(el('option', { value: '' }, '（使わない）'), ...groups);
+    sel.value = exById(state.big3[key]) ? state.big3[key] : '';
+  }
+  document.getElementById('big3-goal').value = state.big3.goal ? fmtNum(state.big3.goal) : '';
+  document.getElementById('big3-dialog').showModal();
+}
+
+function setupStats() {
+  document.getElementById('big3-edit').addEventListener('click', openBig3Dialog);
+  document.getElementById('big3-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const goal = toNum(document.getElementById('big3-goal').value);
+    const big3 = { goal: goal || 0 };
+    for (const [key] of BIG3_LIFTS) big3[key] = document.getElementById(`big3-${key}`).value || null;
+    await saveBig3(big3);
+    document.getElementById('big3-dialog').close();
+    renderStats();
+    toast('BIG3の設定を保存しました');
+  });
+}
+
 // ---------- グラフ ----------
+const METRICS = {
+  top: { label: '最大重量', short: '最大', value: topWeight },
+  e1rm: { label: '推定MAX', short: '推定', value: bestE1RM },
+  volume: { label: '総挙上量', short: '総量', value: volume },
+};
+
 function chartPoints() {
   const id = state.chartExercise;
   const pts = [];
   for (const s of state.sessions) {
     const ex = s.exercises.find((e) => e.exerciseId === id);
     if (!ex || !validSets(ex).length) continue;
-    const v = state.chartMetric === 'top' ? topWeight(ex) : volume(ex);
+    const v = METRICS[state.chartMetric].value(ex);
     if (v == null) continue;
     pts.push({ date: s.date, value: v, ex });
   }
@@ -874,9 +1068,9 @@ let chartGeom = null;
 function renderChart() {
   const pts = chartPoints();
   const unit = 'kg';
-  const metricLabel = state.chartMetric === 'top' ? '最大重量' : '総挙上量';
+  const metricLabel = METRICS[state.chartMetric].label;
   document.getElementById('chart-title').textContent = `${exName(state.chartExercise, '')}：${metricLabel}（${unit}）`;
-  document.getElementById('chart-table-metric').textContent = state.chartMetric === 'top' ? '最大' : '総量';
+  document.getElementById('chart-table-metric').textContent = METRICS[state.chartMetric].short;
   const summary = document.getElementById('chart-summary');
   if (pts.length) {
     const first = pts[0].value, last = pts[pts.length - 1].value;
@@ -1029,6 +1223,7 @@ function exportPayload() {
     exportedAt: new Date().toISOString(),
     exercises: state.exercises,
     menus: state.menus,
+    big3: state.big3,
     sessions: state.sessions,
   };
 }
@@ -1112,6 +1307,11 @@ async function importFromFile(file) {
       .filter((m) => m && typeof m.id === 'string' && typeof m.name === 'string' && m.name.trim())
       .map((m) => ({ id: m.id, name: m.name.trim(), exerciseIds: (Array.isArray(m.exerciseIds) ? m.exerciseIds : []).filter((x) => typeof x === 'string') }))
     : null;
+  const b = data.big3;
+  const importedBig3 = b && typeof b === 'object' ? {
+    goal: Number(b.goal) > 0 ? Number(b.goal) : 0,
+    ...Object.fromEntries(BIG3_LIFTS.map(([key]) => [key, typeof b[key] === 'string' ? b[key] : null])),
+  } : null;
   if (!sessions.length && !importedExercises.length) { toast('取り込める記録がありませんでした'); return; }
 
   // 取り込み後の種目一覧（既存 + ファイル）で、種目 id の無い記録を名前で解決
@@ -1132,6 +1332,7 @@ async function importFromFile(file) {
     [...importedExercises, ...added].forEach((e) => s.exercises.put(e));
     sessions.forEach((x) => s.sessions.put(x));
     if (importedMenus) s.meta.put({ key: 'config', menus: importedMenus });
+    if (importedBig3) s.meta.put({ key: 'big3', ...importedBig3 });
   });
   await reloadData();
   if (!state.editingId && !hasAnyInput()) {
@@ -1232,7 +1433,7 @@ function renderSettings() {
 }
 
 // ---------- 画面切り替え ----------
-const TITLES = { record: '記録', chart: 'グラフ', history: '履歴', menu: '種目・メニュー', settings: 'データ' };
+const TITLES = { record: '記録', chart: 'グラフ・自己ベスト', history: '履歴', menu: '種目・メニュー', settings: 'データ' };
 function isActive(view) {
   return document.getElementById(`view-${view}`).classList.contains('active');
 }
@@ -1244,7 +1445,7 @@ function showView(view) {
     b.setAttribute('aria-selected', String(on));
   });
   document.getElementById('header-title').textContent = TITLES[view];
-  if (view === 'chart') renderChart();
+  if (view === 'chart') { renderStats(); renderChart(); }
   window.scrollTo({ top: 0 });
 }
 
@@ -1254,16 +1455,18 @@ function renderAll() {
   renderMenu();
   renderSettings();
   renderChartSelect();
-  if (isActive('chart')) renderChart();
+  if (isActive('chart')) { renderStats(); renderChart(); }
 }
 
 async function reloadData() {
-  const [sessions, exercises, config] = await Promise.all([
-    DB.getAll('sessions'), DB.getAll('exercises'), DB.get('meta', 'config'),
+  const [sessions, exercises, config, big3] = await Promise.all([
+    DB.getAll('sessions'), DB.getAll('exercises'), DB.get('meta', 'config'), DB.get('meta', 'big3'),
   ]);
   state.sessions = sortSessions(sessions);
   state.exercises = exercises;
   state.menus = Array.isArray(config?.menus) ? config.menus : [];
+  const { key, ...savedBig3 } = big3 || {};
+  state.big3 = { ...DEFAULT_BIG3, ...savedBig3 };
 }
 
 function setupRecordControls() {
@@ -1305,6 +1508,7 @@ async function init() {
   setupChart();
   setupSettings();
   setupTextCopy();
+  setupStats();
   setupDialogs();
 
   try {
