@@ -1,6 +1,6 @@
 // アプリ本体をキャッシュしてオフラインで動かす Service Worker
 // ファイルを更新したら CACHE_NAME のバージョンを上げること
-const CACHE_NAME = 'workout-log-v7';
+const CACHE_NAME = 'workout-log-v8';
 const ASSETS = [
   './',
   './index.html',
