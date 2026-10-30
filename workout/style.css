@@ -143,6 +143,8 @@ main {
 }
 .prev strong { color: var(--text); font-weight: 600; }
 .prev .hint { margin-top: 4px; color: var(--good); font-weight: 700; }
+.prev .hint.warn { color: var(--text); font-weight: 600; }
+.target-tag { font-size: 11px; color: var(--text-3); white-space: nowrap; }
 .badge {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 9px; border-radius: 999px; font-size: 13px; font-weight: 700;

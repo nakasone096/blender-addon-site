@@ -1,8 +1,20 @@
 'use strict';
 
-const APP_VERSION = '3.2.0';
+const APP_VERSION = '3.3.0';
+// 目標のセット数・回数の初期値（種目ごとに変えられる）
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
+const MAX_SETS = 6;
+const SET_OPTIONS = [2, 3, 4, 5];
+const REP_OPTIONS = [3, 5, 8, 10, 12];
+// BIG3 の重いセット：[元の種目, 重いセットの種目, 名前, 増やす重さ]
+const HEAVY_LIFTS = [
+  ['ex-bench', 'ex-bench-heavy', 'ベンチプレス（重いセット）', 2.5],
+  ['ex-squat', 'ex-squat-heavy', 'スクワット（重いセット）', 5],
+  ['ex-deadlift', 'ex-deadlift-heavy', 'デッドリフト（重いセット）', 5],
+];
+const HEAVY_TARGET = { sets: 3, reps: 5 };
+const BACKOFF_TARGET = { sets: 2, reps: 10 };
 // 達成したときに増やす重さ（種目ごとに選べる）。初期値は部位で決める
 const INCREMENT_OPTIONS = [1, 2, 2.5, 5];
 const DEFAULT_INCREMENT = { chest: 5, back: 5, leg: 5, shoulder: 2.5, arm: 2.5, other: 2.5 };
@@ -134,6 +146,14 @@ function activeExercises(part) {
 function visibleParts() {
   return PARTS.filter((p) => p.id !== 'other' || activeExercises('other').length);
 }
+function targetFor(exId) {
+  const e = exById(exId);
+  return { sets: e?.sets || SET_COUNT, reps: e?.reps || TARGET_REPS };
+}
+function targetText(exId) {
+  const t = targetFor(exId);
+  return `${t.sets}×${t.reps}`;
+}
 function incrementFor(exId) {
   const e = exById(exId);
   return e?.increment || DEFAULT_INCREMENT[e?.part] || 2.5;
@@ -207,6 +227,33 @@ async function ensureCatalog() {
   });
 }
 
+// BIG3 に重いセットの種目を作り、メニューの先頭に「重いセット → いつものセット」の順で並べる（一度だけ）
+async function ensureHeavySetup() {
+  await DB.run(['exercises', 'meta'], 'readwrite', async (s) => {
+    if (await DB.req(s.meta.get('heavy-setup'))) return;
+    const exercises = await DB.req(s.exercises.getAll());
+    const config = await DB.req(s.meta.get('config'));
+    const byId = new Map(exercises.map((e) => [e.id, e]));
+    let maxOrder = exercises.reduce((m, e) => Math.max(m, e.order || 0), 0);
+    const menus = (config?.menus || []).map((m) => ({ ...m, exerciseIds: [...m.exerciseIds] }));
+    for (const [mainId, heavyId, name, increment] of HEAVY_LIFTS) {
+      const main = byId.get(mainId);
+      if (!main || main.archived) continue;
+      if (!byId.has(heavyId)) {
+        s.exercises.put({ id: heavyId, name, part: main.part, increment, ...HEAVY_TARGET, heavyOf: mainId, order: maxOrder + 1, archived: false });
+        maxOrder++;
+      }
+      s.exercises.put({ ...main, ...BACKOFF_TARGET });
+      for (const m of menus) {
+        if (!m.exerciseIds.includes(mainId)) continue;
+        m.exerciseIds = [heavyId, mainId, ...m.exerciseIds.filter((x) => x !== mainId && x !== heavyId)];
+      }
+    }
+    if (config) s.meta.put({ ...config, menus });
+    s.meta.put({ key: 'heavy-setup', done: true });
+  });
+}
+
 async function saveMenus() {
   await DB.put('meta', { key: 'config', menus: state.menus });
 }
@@ -215,12 +262,16 @@ async function saveMenus() {
 function validSets(ex) {
   return (ex?.sets || []).filter((s) => s && s.reps != null && s.reps > 0);
 }
-// 4セットとも同じ重さで10回以上できたか
-function achievedTarget(sets) {
-  if (!sets || sets.length < SET_COUNT) return false;
-  const four = sets.slice(0, SET_COUNT);
-  if (!four.every((s) => s && s.reps != null && s.reps >= TARGET_REPS)) return false;
-  return four.every((s) => s.weight === four[0].weight);
+// 記録したときの目標（この機能より前の記録は 4×10）
+function recTarget(ex) {
+  return ex?.target || { sets: SET_COUNT, reps: TARGET_REPS };
+}
+// 目標のセット数すべてを、同じ重さで目標の回数以上できたか
+function achievedTarget(sets, t) {
+  if (!sets || sets.length < t.sets) return false;
+  const target = sets.slice(0, t.sets);
+  if (!target.every((s) => s && s.reps != null && s.reps >= t.reps)) return false;
+  return target.every((s) => s.weight === target[0].weight);
 }
 // 次回の目安にする重さ：一番多くのセットで使った重さ（同数なら重い方）
 function workingWeight(ex) {
@@ -279,8 +330,8 @@ function previousRecord(exId) {
   return null;
 }
 
-function emptySets() {
-  return Array.from({ length: SET_COUNT }, () => ({ weight: '', reps: '' }));
+function emptySets(exId) {
+  return Array.from({ length: targetFor(exId).sets }, () => ({ weight: '', reps: '' }));
 }
 function hasAnyInput() {
   return state.order.some((id) => (state.inputs[id] || []).some((s) => s.weight !== '' || s.reps !== ''));
@@ -289,7 +340,7 @@ function applyDay(day) {
   state.day = day;
   state.order = day === FREE_DAY ? [] : menuExerciseIds(day);
   state.inputs = {};
-  state.order.forEach((id) => { state.inputs[id] = emptySets(); });
+  state.order.forEach((id) => { state.inputs[id] = emptySets(id); });
 }
 function removeFromSession(exId) {
   state.order = state.order.filter((id) => id !== exId);
@@ -321,7 +372,7 @@ function loadDraft() {
       day: d.day, dayOverridden: !!d.dayOverridden, date: d.date || todayStr(),
       editingId: d.editingId || null, order, inputs: {},
     });
-    order.forEach((id) => { state.inputs[id] = Array.isArray(d.inputs[id]) ? d.inputs[id] : emptySets(); });
+    order.forEach((id) => { state.inputs[id] = Array.isArray(d.inputs[id]) ? d.inputs[id] : emptySets(id); });
     return true;
   } catch (_) { return false; }
 }
@@ -378,22 +429,27 @@ function renderExerciseCard(exId) {
   const ex = exById(exId);
   const inputs = state.inputs[exId];
   const prev = previousRecord(exId);
-  const prevAchieved = prev ? achievedTarget(prev.ex.sets) : false;
+  const target = targetFor(exId);
+  const prevAchieved = prev ? achievedTarget(prev.ex.sets, recTarget(prev.ex)) : false;
   const prevBase = prev ? workingWeight(prev.ex) : null;
   const inc = incrementFor(exId);
-  const suggested = prevBase == null ? null : prevAchieved ? prevBase + inc : prevBase;
+  // 重いセットで2回続けて届かなかったら、10%下げて組み直す
+  const stalled = !prevAchieved && ex.heavyOf ? stalledWeight(exId) : null;
+  const reset = stalled != null ? Math.max(inc, Math.round((stalled * 0.9) / inc) * inc) : null;
+  const suggested = prevBase == null ? null : prevAchieved ? prevBase + inc : reset != null ? reset : prevBase;
 
   const badgeWrap = el('span', { class: 'badge-wrap' });
   const updateBadge = () => {
     const cur = inputs.map((s) => ({ weight: toNum(s.weight), reps: toNum(s.reps) }));
-    badgeWrap.replaceChildren(achievedTarget(cur) ? el('span', { class: 'badge' }, `✓ 次回+${fmtNum(inc)}kg`) : '');
+    badgeWrap.replaceChildren(achievedTarget(cur, target) ? el('span', { class: 'badge' }, `✓ 次回+${fmtNum(inc)}kg`) : '');
   };
 
   let prevBox;
   if (prev) {
     prevBox = el('div', { class: 'prev' },
       el('div', {}, '前回 ', el('span', {}, fmtDate(prev.session.date, false)), '： ', el('strong', {}, setsText(prev.ex))),
-      prevAchieved ? el('div', { class: 'hint' }, `前回 同じ重さで4セット×${TARGET_REPS}回達成 → 今回 +${fmtNum(inc)}kg（${fmtNum(suggested)}kg）`) : null,
+      prevAchieved ? el('div', { class: 'hint' }, `前回 同じ重さで${target.sets}セット×${target.reps}回達成 → 今回 +${fmtNum(inc)}kg（${fmtNum(suggested)}kg）`) : null,
+      reset != null ? el('div', { class: 'hint warn' }, `2回続けて${target.sets}×${target.reps}に届かなかったので、10%下げて組み直し（${fmtNum(reset)}kg）`) : null,
     );
   } else {
     prevBox = el('div', { class: 'prev' }, '前回の記録なし');
@@ -417,7 +473,7 @@ function renderExerciseCard(exId) {
       placeholder: p && p.reps != null ? String(p.reps) : '回',
     });
     rIn.value = set.reps;
-    const markDone = () => rIn.classList.toggle('done', (toNum(rIn.value) || 0) >= TARGET_REPS);
+    const markDone = () => rIn.classList.toggle('done', (toNum(rIn.value) || 0) >= target.reps);
     markDone();
 
     wIn.addEventListener('input', () => { set.weight = wIn.value.trim(); updateBadge(); saveDraft(); });
@@ -457,15 +513,30 @@ function renderExerciseCard(exId) {
   updateBadge();
   return el('div', { class: 'card ex-card' },
     el('div', { class: 'ex-head' },
-      el('div', { class: 'ex-title' }, el('h3', {}, ex.name), el('span', { class: 'part-tag' }, PART_NAME[ex.part])),
+      el('div', { class: 'ex-title' }, el('h3', {}, ex.name), el('span', { class: 'part-tag' }, PART_NAME[ex.part]),
+        el('span', { class: 'target-tag' }, `目標 ${target.sets}×${target.reps}`)),
       el('div', { class: 'ex-tools' }, badgeWrap, removeBtn)),
     prevBox, grid, fillBtn);
+}
+
+// 直近2回が同じ重さで、どちらも目標に届いていなければ、その重さ
+function stalledWeight(exId) {
+  const recs = [];
+  for (let i = state.sessions.length - 1; i >= 0 && recs.length < 2; i--) {
+    const s = state.sessions[i];
+    if (s.id === state.editingId || s.date > state.date) continue;
+    const ex = s.exercises.find((e) => e.exerciseId === exId);
+    if (ex && validSets(ex).length) recs.push(ex);
+  }
+  if (recs.length < 2 || recs.some((ex) => achievedTarget(ex.sets, recTarget(ex)))) return null;
+  const w = workingWeight(recs[0]);
+  return w != null && w === workingWeight(recs[1]) ? w : null;
 }
 
 function addToSession(exId) {
   if (state.order.includes(exId)) return;
   state.order.push(exId);
-  state.inputs[exId] = emptySets();
+  state.inputs[exId] = emptySets(exId);
   saveDraft();
   renderRecord();
   // 追加したカードまでスクロール
@@ -482,7 +553,7 @@ async function saveSession() {
       (s.weight !== '' && sets[i].weight == null) || (s.reps !== '' && sets[i].reps == null));
     if (invalid) { toast(`${name}：数値を正しく入力してください`); return; }
     if (sets.some((s) => s.reps != null && s.reps > 0)) {
-      exercises.push({ exerciseId: id, name, sets: sets.map((s) => (s.reps ? s : { weight: s.weight, reps: null })) });
+      exercises.push({ exerciseId: id, name, target: targetFor(id), sets: sets.map((s) => (s.reps ? s : { weight: s.weight, reps: null })) });
     }
   }
   if (!exercises.length) { toast('回数が入力されていません'); return; }
@@ -507,7 +578,7 @@ async function saveSession() {
     return;
   }
   await reloadData();
-  const achieved = exercises.filter((e) => achievedTarget(e.sets)).map((e) => `${e.name} +${fmtNum(incrementFor(e.exerciseId))}kg`);
+  const achieved = exercises.filter((e) => achievedTarget(e.sets, e.target)).map((e) => `${e.name} +${fmtNum(incrementFor(e.exerciseId))}kg`);
   const prs = sessionPRs(session);
   resetRecordForm();
   renderAll();
@@ -529,7 +600,7 @@ function startEdit(id) {
   for (const ex of s.exercises) {
     if (!exById(ex.exerciseId) || state.order.includes(ex.exerciseId)) continue;
     state.order.push(ex.exerciseId);
-    state.inputs[ex.exerciseId] = Array.from({ length: SET_COUNT }, (_, i) => {
+    state.inputs[ex.exerciseId] = Array.from({ length: Math.max(targetFor(ex.exerciseId).sets, ex.sets.length) }, (_, i) => {
       const set = ex.sets[i] || {};
       return { weight: set.weight == null ? '' : fmtNum(set.weight), reps: set.reps == null ? '' : String(set.reps) };
     });
@@ -577,18 +648,21 @@ function pick(exId) {
 }
 
 // ---------- 種目の作成・編集ダイアログ ----------
-const exDialog = { resolve: null, editing: null, part: 'chest', increment: null };
+const exDialog = { resolve: null, editing: null, part: 'chest', increment: null, sets: SET_COUNT, reps: TARGET_REPS };
 
 function openExerciseDialog({ exercise = null, part = 'chest' } = {}) {
   exDialog.editing = exercise;
   exDialog.part = exercise ? exercise.part : part;
   // null のあいだは部位の初期値に従う
   exDialog.increment = exercise?.increment || null;
+  exDialog.sets = exercise?.sets || SET_COUNT;
+  exDialog.reps = exercise?.reps || TARGET_REPS;
   document.getElementById('exercise-dialog-title').textContent = exercise ? '種目を編集' : '種目を追加';
   const nameIn = document.getElementById('exercise-name');
   nameIn.value = exercise ? exercise.name : '';
   document.getElementById('exercise-error').hidden = true;
   renderExercisePartChips();
+  renderTargetChips();
   document.getElementById('exercise-dialog').showModal();
   if (!exercise) nameIn.focus();
   return new Promise((resolve) => { exDialog.resolve = resolve; });
@@ -605,6 +679,16 @@ function renderExercisePartChips() {
 
 function dialogIncrement() {
   return exDialog.increment || DEFAULT_INCREMENT[exDialog.part] || 2.5;
+}
+
+function renderTargetChips() {
+  const chips = (id, options, key, unit) => document.getElementById(id).replaceChildren(...options.map((n) => el('button', {
+    type: 'button', class: 'chip', role: 'radio', 'aria-checked': String(n === exDialog[key]),
+    onclick: () => { exDialog[key] = n; renderTargetChips(); },
+  }, `${n}${unit}`)));
+  chips('exercise-sets', SET_OPTIONS, 'sets', 'セット');
+  chips('exercise-reps', REP_OPTIONS, 'reps', '回');
+  document.getElementById('exercise-increment-label').textContent = `${exDialog.sets}セット×${exDialog.reps}回できたら増やす重さ`;
 }
 
 function renderIncrementChips() {
@@ -627,13 +711,13 @@ async function submitExerciseDialog(ev) {
 
   let saved;
   if (exDialog.editing) {
-    saved = { ...exDialog.editing, name, part: exDialog.part, increment: dialogIncrement() };
+    saved = { ...exDialog.editing, name, part: exDialog.part, increment: dialogIncrement(), sets: exDialog.sets, reps: exDialog.reps };
   } else if (dup) {
     // 削除済みの同名種目は復活させる（過去の記録とつながる）
-    saved = { ...dup, part: exDialog.part, increment: dialogIncrement(), archived: false };
+    saved = { ...dup, part: exDialog.part, increment: dialogIncrement(), sets: exDialog.sets, reps: exDialog.reps, archived: false };
   } else {
     const maxOrder = state.exercises.reduce((m, e) => Math.max(m, e.order || 0), 0);
-    saved = { id: genId('ex-'), name, part: exDialog.part, increment: dialogIncrement(), order: maxOrder + 1, archived: false };
+    saved = { id: genId('ex-'), name, part: exDialog.part, increment: dialogIncrement(), sets: exDialog.sets, reps: exDialog.reps, order: maxOrder + 1, archived: false };
   }
   await DB.put('exercises', saved);
   await reloadData();
@@ -755,7 +839,7 @@ function renderMenu() {
         el('h2', { class: 'card-title' }, p.name, el('span', { class: 'muted small' }, `　${items.length}種目`)),
         el('button', { type: 'button', class: 'text-btn', onclick: () => openExerciseDialog({ part: p.id }) }, '＋ 追加')),
       items.length ? el('ul', { class: 'row-list' }, items.map((e) => el('li', { class: 'row' },
-        el('span', { class: 'row-name' }, e.name, el('span', { class: 'muted small' }, `+${fmtNum(incrementFor(e.id))}kg`)),
+        el('span', { class: 'row-name' }, e.name, el('span', { class: 'muted small' }, `${targetText(e.id)}・+${fmtNum(incrementFor(e.id))}kg`)),
         el('button', { type: 'button', class: 'small-btn', onclick: () => openExerciseDialog({ exercise: e }) }, '編集'),
         el('button', { type: 'button', class: 'small-btn danger', onclick: () => deleteExercise(e) }, '削除'))))
         : el('p', { class: 'muted small row-empty' }, '種目がありません'));
@@ -809,7 +893,7 @@ function renderHistory() {
         el('button', { type: 'button', class: 'small-btn danger', onclick: () => deleteSession(s) }, '削除'))),
     s.exercises.map((ex) => el('div', { class: 'hist-ex' },
       el('span', { class: 'name' }, exName(ex.exerciseId, ex.name)),
-      el('span', { class: 'sets-txt' }, setsText(ex), achievedTarget(ex.sets) ? ' ✓' : ''))),
+      el('span', { class: 'sets-txt' }, setsText(ex), achievedTarget(ex.sets, recTarget(ex)) ? ' ✓' : ''))),
   )));
 }
 
@@ -849,24 +933,31 @@ function bestE1RM(ex) {
   return best;
 }
 
-// 種目の自己ベスト（excludeId の記録は含めない）
-function personalBests(exId, excludeId) {
+// 種目の自己ベスト（excludeId の記録は含めない）。exIds に複数渡すとまとめて計算する
+function personalBests(exIds, excludeId) {
+  const ids = new Set([].concat(exIds));
   const pb = { weight: null, weightDate: null, e1rm: null, e1rmDate: null, repsAt: new Map() };
   for (const s of state.sessions) {
     if (s.id === excludeId) continue;
-    const ex = s.exercises.find((e) => e.exerciseId === exId);
-    if (!ex) continue;
-    for (const set of validSets(ex)) {
-      if (set.weight == null) continue;
-      if (pb.weight == null || set.weight > pb.weight) { pb.weight = set.weight; pb.weightDate = s.date; }
-      if (set.reps > (pb.repsAt.get(set.weight) || 0)) pb.repsAt.set(set.weight, set.reps);
-      if (set.weight > 0 && set.reps <= E1RM_MAX_REPS) {
-        const v = e1rm(set.weight, set.reps);
-        if (pb.e1rm == null || v > pb.e1rm) { pb.e1rm = v; pb.e1rmDate = s.date; }
+    for (const ex of s.exercises) {
+      if (!ids.has(ex.exerciseId)) continue;
+      for (const set of validSets(ex)) {
+        if (set.weight == null) continue;
+        if (pb.weight == null || set.weight > pb.weight) { pb.weight = set.weight; pb.weightDate = s.date; }
+        if (set.reps > (pb.repsAt.get(set.weight) || 0)) pb.repsAt.set(set.weight, set.reps);
+        if (set.weight > 0 && set.reps <= E1RM_MAX_REPS) {
+          const v = e1rm(set.weight, set.reps);
+          if (pb.e1rm == null || v > pb.e1rm) { pb.e1rm = v; pb.e1rmDate = s.date; }
+        }
       }
     }
   }
   return pb;
+}
+
+// BIG3 の種目と、その重いセットの種目
+function liftIds(exId) {
+  return [exId, ...state.exercises.filter((e) => e.heavyOf === exId).map((e) => e.id)];
 }
 
 // 保存した記録で更新した自己ベスト。初めての種目は対象外
@@ -905,7 +996,7 @@ function showPRDialog(prs) {
 function big3Stats() {
   return BIG3_LIFTS.map(([key, label]) => {
     const exId = state.big3[key];
-    const pb = exId && exById(exId) ? personalBests(exId, null) : null;
+    const pb = exId && exById(exId) ? personalBests(liftIds(exId), null) : null;
     return { key, label, exId, name: exId && exById(exId) ? exName(exId) : null, e1rm: pb?.e1rm ?? null, weight: pb?.weight ?? null };
   });
 }
@@ -1088,7 +1179,7 @@ function renderChart() {
   const tbody = document.querySelector('#chart-table tbody');
   tbody.replaceChildren(...[...pts].reverse().map((p) => el('tr', {},
     el('td', {}, fmtDate(p.date, false)),
-    el('td', {}, setsText(p.ex), achievedTarget(p.ex.sets) ? ' ✓' : ''),
+    el('td', {}, setsText(p.ex), achievedTarget(p.ex.sets, recTarget(p.ex)) ? ' ✓' : ''),
     el('td', { class: 'num' }, fmtNum(p.value)))));
   if (!pts.length) { chartGeom = null; return; }
 
@@ -1261,7 +1352,9 @@ function normalizeSession(raw) {
     .map((e) => ({
       exerciseId: typeof e.exerciseId === 'string' ? e.exerciseId : null,
       name: typeof e.name === 'string' ? e.name : '',
-      sets: e.sets.slice(0, SET_COUNT).map((s) => ({
+      ...(e.target && Number(e.target.sets) > 0 && Number(e.target.reps) > 0
+        ? { target: { sets: Number(e.target.sets), reps: Number(e.target.reps) } } : {}),
+      sets: e.sets.slice(0, MAX_SETS).map((s) => ({
         weight: s && s.weight != null && Number.isFinite(Number(s.weight)) ? Number(s.weight) : null,
         reps: s && s.reps != null && Number.isFinite(Number(s.reps)) ? Number(s.reps) : null,
       })),
@@ -1286,6 +1379,9 @@ function normalizeExercise(raw) {
     order: Number(raw.order) || 0,
     archived: !!raw.archived,
     ...(Number(raw.increment) > 0 ? { increment: Number(raw.increment) } : {}),
+    ...(Number(raw.sets) >= 1 && Number(raw.sets) <= MAX_SETS ? { sets: Number(raw.sets) } : {}),
+    ...(Number(raw.reps) >= 1 ? { reps: Number(raw.reps) } : {}),
+    ...(typeof raw.heavyOf === 'string' ? { heavyOf: raw.heavyOf } : {}),
   };
 }
 
@@ -1348,7 +1444,7 @@ function sessionText(s) {
   const lines = [`【${fmtDate(s.date)} ${sessionDayLabel(s)}】`];
   for (const ex of s.exercises) {
     if (!validSets(ex).length) continue;
-    lines.push(`${exName(ex.exerciseId, ex.name)}：${setsText(ex)}${achievedTarget(ex.sets) ? ` ✓（次回+${fmtNum(incrementFor(ex.exerciseId))}kg）` : ''}`);
+    lines.push(`${exName(ex.exerciseId, ex.name)}：${setsText(ex)}${achievedTarget(ex.sets, recTarget(ex)) ? ` ✓（次回+${fmtNum(incrementFor(ex.exerciseId))}kg）` : ''}`);
   }
   return lines.join('\n');
 }
@@ -1513,6 +1609,7 @@ async function init() {
 
   try {
     await ensureCatalog();
+    await ensureHeavySetup();
     await reloadData();
   } catch (e) {
     console.error(e);
