@@ -150,6 +150,19 @@ main {
   padding: 3px 9px; border-radius: 999px; font-size: 13px; font-weight: 700;
   background: var(--good-soft); color: var(--good); white-space: nowrap;
 }
+.warmup { margin: 0 0 10px; padding: 6px 10px 4px; border: 1px dashed var(--border); border-radius: 8px; }
+.warmup-head { font-size: 13px; font-weight: 700; color: var(--text-2); margin-bottom: 2px; }
+.wu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px;
+  padding: 0; border: 0; background: none; font-size: 15px; text-align: left; font-variant-numeric: tabular-nums;
+}
+.wu-box {
+  flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--text-3);
+  display: grid; place-items: center; font-size: 14px; font-weight: 700; line-height: 1;
+}
+.wu-item[aria-checked="true"] .wu-box { background: var(--good); border-color: var(--good); color: #fff; }
+.wu-item[aria-checked="true"] .wu-text { color: var(--text-3); text-decoration: line-through; }
+.wu-note { margin: 0 0 6px; }
 .sets { display: grid; grid-template-columns: 34px 1fr 1fr; gap: 6px 8px; align-items: center; }
 .sets .col-h { font-size: 12px; color: var(--text-3); text-align: center; }
 .set-no { font-size: 13px; color: var(--text-2); text-align: center; }

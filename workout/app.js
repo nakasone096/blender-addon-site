@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '3.3.0';
+const APP_VERSION = '3.4.0';
 // 目標のセット数・回数の初期値（種目ごとに変えられる）
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
@@ -14,6 +14,7 @@ const HEAVY_LIFTS = [
   ['ex-deadlift', 'ex-deadlift-heavy', 'デッドリフト（重いセット）', 5],
 ];
 const HEAVY_TARGET = { sets: 3, reps: 5 };
+const BAR_KG = 20;
 const BACKOFF_TARGET = { sets: 2, reps: 10 };
 // 達成したときに増やす重さ（種目ごとに選べる）。初期値は部位で決める
 const INCREMENT_OPTIONS = [1, 2, 2.5, 5];
@@ -78,6 +79,7 @@ const state = {
   editingId: null,
   order: [],          // 記録画面に並べる種目 id
   inputs: {},         // { 種目id: [{weight:'', reps:''} x4] }
+  warmup: {},         // { 種目id: [チェック済みの段階番号] }（記録には残さない）
   chartExercise: null,
   chartMetric: 'top',
   big3: null,         // { squat, bench, deadlift: 種目id, goal: kg }
@@ -341,6 +343,7 @@ function applyDay(day) {
   state.order = day === FREE_DAY ? [] : menuExerciseIds(day);
   state.inputs = {};
   state.order.forEach((id) => { state.inputs[id] = emptySets(id); });
+  state.warmup = {};
 }
 function removeFromSession(exId) {
   state.order = state.order.filter((id) => id !== exId);
@@ -353,7 +356,7 @@ function saveDraft() {
   try {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({
       day: state.day, dayOverridden: state.dayOverridden, date: state.date,
-      editingId: state.editingId, order: state.order, inputs: state.inputs,
+      editingId: state.editingId, order: state.order, inputs: state.inputs, warmup: state.warmup,
     }));
   } catch (_) { /* 保存できない環境では無視 */ }
 }
@@ -371,6 +374,7 @@ function loadDraft() {
     Object.assign(state, {
       day: d.day, dayOverridden: !!d.dayOverridden, date: d.date || todayStr(),
       editingId: d.editingId || null, order, inputs: {},
+      warmup: d.warmup && typeof d.warmup === 'object' ? d.warmup : {},
     });
     order.forEach((id) => { state.inputs[id] = Array.isArray(d.inputs[id]) ? d.inputs[id] : emptySets(id); });
     return true;
@@ -425,6 +429,50 @@ function selectDay(day) {
   renderRecord();
 }
 
+// ---------- ウォーミングアップ（BIG3 の重いセット） ----------
+function roundTo(x, step) {
+  return Math.round(x / step) * step;
+}
+// その日の重さから、ウォーミングアップの段階を作る（軽い順、本番の重さ未満だけ）
+function warmupSteps(ex, working) {
+  const first = ex.heavyOf === 'ex-deadlift'
+    ? { weight: Math.max(40, roundTo((working || 0) * 0.4, 2.5)), reps: 8 }
+    : { weight: BAR_KG, reps: 10, bar: true };
+  if (working == null) return [first];
+  const steps = [];
+  for (const st of [first, { weight: roundTo(working * 0.65, 2.5), reps: 5 }, { weight: roundTo(working * 0.85, 2.5), reps: 3 }]) {
+    const last = steps[steps.length - 1];
+    if (st.weight < working && (!last || st.weight > last.weight)) steps.push(st);
+  }
+  return steps.length ? steps : [first];
+}
+
+function renderWarmup(ex, inputs, suggested) {
+  const box = el('div', { class: 'warmup' });
+  const update = () => {
+    const working = toNum(inputs[0]?.weight) ?? suggested;
+    const steps = warmupSteps(ex, working);
+    const done = new Set(state.warmup[ex.id] || []);
+    // null は replaceChildren に渡すと文字として表示されるので除く
+    box.replaceChildren(...[
+      el('div', { class: 'warmup-head' }, 'ウォーミングアップ', el('span', { class: 'muted small' }, '（記録には残りません）')),
+      ...steps.map((st, i) => el('button', {
+        type: 'button', class: 'wu-item', role: 'checkbox', 'aria-checked': String(done.has(i)),
+        onclick: () => {
+          done.has(i) ? done.delete(i) : done.add(i);
+          state.warmup[ex.id] = [...done];
+          saveDraft();
+          update();
+        },
+      }, el('span', { class: 'wu-box', 'aria-hidden': 'true' }, done.has(i) ? '✓' : ''),
+      el('span', { class: 'wu-text' }, `${st.bar ? 'バー（20kg）' : `${fmtNum(st.weight)}kg`} × ${st.reps}回`))),
+      working == null ? el('p', { class: 'muted small wu-note' }, '1セット目の重さを入れると、残りの段階が出ます') : null,
+    ].filter(Boolean));
+  };
+  update();
+  return { box, update };
+}
+
 function renderExerciseCard(exId) {
   const ex = exById(exId);
   const inputs = state.inputs[exId];
@@ -455,6 +503,9 @@ function renderExerciseCard(exId) {
     prevBox = el('div', { class: 'prev' }, '前回の記録なし');
   }
 
+  // BIG3 の重いセットには、ウォーミングアップのチェックリストを出す（過去の記録の編集中は出さない）
+  const warmup = ex.heavyOf && !state.editingId ? renderWarmup(ex, inputs, suggested) : null;
+
   const grid = el('div', { class: 'sets' },
     el('span', { class: 'col-h' }, ''), el('span', { class: 'col-h' }, '重量 (kg)'), el('span', { class: 'col-h' }, '回数'));
   const prevSets = prev ? prev.ex.sets : [];
@@ -476,7 +527,12 @@ function renderExerciseCard(exId) {
     const markDone = () => rIn.classList.toggle('done', (toNum(rIn.value) || 0) >= target.reps);
     markDone();
 
-    wIn.addEventListener('input', () => { set.weight = wIn.value.trim(); updateBadge(); saveDraft(); });
+    wIn.addEventListener('input', () => {
+      set.weight = wIn.value.trim();
+      updateBadge();
+      if (i === 0) warmup?.update();
+      saveDraft();
+    });
     // 1セット目の重量を入れたら、空欄の残りセットにも同じ重量を入れる
     if (i === 0) {
       wIn.addEventListener('change', () => {
@@ -496,7 +552,7 @@ function renderExerciseCard(exId) {
     type: 'button', class: 'fill-btn',
     onclick: () => {
       inputs.forEach((s, j) => { s.weight = fmtNum(suggested); weightInputs[j].value = s.weight; });
-      updateBadge(); saveDraft();
+      updateBadge(); warmup?.update(); saveDraft();
     },
   }, `全セットの重量を ${fmtNum(suggested)}kg にする`) : null;
 
@@ -516,7 +572,7 @@ function renderExerciseCard(exId) {
       el('div', { class: 'ex-title' }, el('h3', {}, ex.name), el('span', { class: 'part-tag' }, PART_NAME[ex.part]),
         el('span', { class: 'target-tag' }, `目標 ${target.sets}×${target.reps}`)),
       el('div', { class: 'ex-tools' }, badgeWrap, removeBtn)),
-    prevBox, grid, fillBtn);
+    prevBox, warmup?.box, grid, fillBtn);
 }
 
 // 直近2回が同じ重さで、どちらも目標に届いていなければ、その重さ
@@ -1007,7 +1063,8 @@ function renderBig3() {
   const goal = state.big3.goal || 0;
   const pct = goal ? Math.min(100, (total / goal) * 100) : 0;
   const missing = stats.filter((s) => s.e1rm == null).map((s) => s.label);
-  document.getElementById('big3-body').replaceChildren(
+  // null は replaceChildren に渡すと文字として表示されるので除く
+  document.getElementById('big3-body').replaceChildren(...[
     ...stats.map((s) => el('div', { class: 'big3-row' },
       el('div', {},
         el('div', { class: 'big3-label' }, s.label),
@@ -1024,7 +1081,8 @@ function renderBig3() {
     }, el('div', { class: 'meter-fill', style: `width:${pct}%` })) : null,
     el('div', { class: 'big3-goal small' },
       goal ? (total >= goal ? `🎉 目標 ${fmtNum(goal)}kg 達成！` : `目標 ${fmtNum(goal)}kg まで あと ${fmtNum(goal - total)}kg`) : '目標は未設定です'),
-    missing.length ? el('p', { class: 'muted small big3-note' }, `${missing.join('・')}はまだ記録がありません（${E1RM_MAX_REPS}回以下のセットから計算します）`) : null);
+    missing.length ? el('p', { class: 'muted small big3-note' }, `${missing.join('・')}はまだ記録がありません（${E1RM_MAX_REPS}回以下のセットから計算します）`) : null,
+  ].filter(Boolean));
 }
 
 function renderPRTable() {
