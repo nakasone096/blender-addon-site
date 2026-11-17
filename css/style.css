@@ -843,3 +843,32 @@ footer small {
 .guide-group[hidden] {
   display: none;
 }
+
+
+/* フリー・余った時間のお手本（画像2枚を横に並べる） */
+.ref-box {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+}
+.ref-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+.ref-row figure {
+  flex: 1 1 0;
+  margin: 0;
+}
+.ref-row figcaption {
+  text-align: center;
+  font-size: 14px;
+  margin-top: 4px;
+}
+.ref-row .step-img {
+  margin-top: 0;
+}
+@media (max-width: 600px) {
+  .ref-row { flex-direction: column; }
+}
