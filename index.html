@@ -87,6 +87,7 @@
           <div class="card-btn-group">
             <a href="#install" class="card-btn">導入手順を見る</a>
             <a href="https://github.com/nakasone096/blender-comparison-logger" class="card-btn" target="_blank" rel="noopener">記録用アドオンを取得</a>
+            <a href="#install-logger" class="card-btn">記録用の導入手順</a>
           </div>
         </div>
 
@@ -98,6 +99,7 @@
           <div class="card-btn-group">
             <a href="https://www.youtube.com/watch?v=KxAMC-PRBOU&t=93s" class="card-btn card-btn--red" target="_blank" rel="noopener">動画を見る（1:33〜）</a>
             <a href="https://github.com/nakasone096/blender-comparison-logger" class="card-btn" target="_blank" rel="noopener">記録用アドオンを取得</a>
+            <a href="#install-logger" class="card-btn">記録用の導入手順</a>
           </div>
         </div>
 
@@ -114,6 +116,11 @@
     <!-- 導入手順セクション -->
     <section id="install" class="section-install">
       <h2>導入手順</h2>
+      <p class="section-desc">
+        対応バージョン：<strong>Blender 4.2 以上</strong>（4.2 LTS で動作確認）<br>
+        この手順は、<strong>チュートリアルアドオン</strong>の導入です。比較実験の確認テストに使う<strong>記録用アドオン</strong>は、
+        このあとの<a href="#install-logger">「記録用アドオンの導入」</a>をご覧ください。
+      </p>
       <div class="install-flow">
 
         <div class="step">
@@ -124,7 +131,7 @@
               上部の「リンク集」または下のボタンからGitHubページにアクセスしてください。
             </p>
             <a href="https://github.com/nakasone096/purototype_0001" class="step-link-btn" target="_blank" rel="noopener">GitHubを開く →</a>
-            <img src="step1.png" alt="GitHubページの画面" class="step-img">
+            <img src="step1.png?v=2" alt="GitHubページの画面" class="step-img">
           </div>
         </div>
 
@@ -135,10 +142,10 @@
           <div class="step-body">
             <h3>ZIPファイルをダウンロードする</h3>
             <p>
-              ページ右上の緑色の「<strong>Code</strong>」ボタンをクリックし、
+              ページ右側の緑色の「<strong>Code</strong>」ボタンをクリックし、
               メニュー内の「<strong>Download ZIP</strong>」を選択してダウンロードしてください。
             </p>
-            <img src="step2.png" alt="Download ZIPの画面" class="step-img">
+            <img src="step2.png?v=2" alt="Download ZIPの画面" class="step-img">
           </div>
         </div>
 
@@ -149,10 +156,10 @@
           <div class="step-body">
             <h3>ZIPファイルをデスクトップに置く</h3>
             <p>
-              ダウンロードしたZIPファイルをデスクトップに移動してください。<br>
+              ダウンロードしたZIPファイル（<code>purototype_0001-main.zip</code>）をデスクトップに移動してください。<br>
               <span class="step-caution">⚠ このZIPファイルは解凍（展開）しないでください。</span>
             </p>
-            <img src="step3.png" alt="ZIPをデスクトップに置いた状態" class="step-img">
+            <img src="step3.png?v=2" alt="ZIPをデスクトップに置いた状態" class="step-img">
           </div>
         </div>
 
@@ -225,9 +232,9 @@
               プリファレンスウィンドウを閉じ、3Dビュー上で
               「<strong>N キー</strong>」を押してサイドパネルを開いてください。<br>
               タブの中に「<strong>Tutorial</strong>」が表示されていれば、
-              インストール成功です。下の画像のように表示されることを確認してください。
+              インストール成功です。下の画像のように、<strong>第0章「基本知識」</strong>が表示されることを確認してください。
             </p>
-            <img src="step10.png" alt="Tutorialパネルが表示された画面" class="step-img">
+            <img src="step10.png?v=2" alt="Tutorialパネルが表示された画面" class="step-img">
           </div>
         </div>
 
@@ -240,12 +247,31 @@
             <p>
               Tutorialパネル上部の「<strong>参加者ID</strong>」欄に、
               自分の<strong>学籍番号</strong>を入力してください。<br>
-              （例：<code>23DB999</code>）<br>
-              記録の保存先は、デスクトップに「<strong>学籍番号_addon</strong>」フォルダ（例：<code>23DB999_addon</code>）が
-              <strong>自動で作られます</strong>。「ログ保存フォルダ」の欄は<strong>空欄のまま</strong>で構いません。
-              （先に作りたい場合は「フォルダを自動作成」ボタンを押してください）
+              （例：<code>11AA000</code>）<br>
+              記録の保存先は、デスクトップの「<strong>学籍番号_addon</strong>」フォルダ（例：<code>11AA000_addon</code>）で、
+              <strong>自動で作られます</strong>。「ログ保存フォルダ」の欄は、<strong>空欄のまま</strong>か、
+              下の画像のように<strong>自動で入った状態のまま</strong>にしてください。
+              （先に作りたい場合は「フォルダを自動作成」ボタンを押してください）<br>
+              <span class="step-caution">⚠ フォルダ選択のボタン（Blenderのファイルブラウザ）は、Blenderが落ちることがあるので使わないでください。</span>
             </p>
-            <img src="step11.png" alt="参加者IDに学籍番号を入力する画面" class="step-img">
+            <img src="step11.png?v=2" alt="参加者IDに学籍番号を入力する画面" class="step-img">
+          </div>
+        </div>
+
+        <div class="step-arrow">▼</div>
+
+        <div class="step">
+          <div class="step-num">10</div>
+          <div class="step-body">
+            <h3>第0章から始める</h3>
+            <p>
+              パネルの<strong>【セットアップ】</strong>を押すと、使い方と画面の見方を説明するポップアップが（4ページ）出ます。
+              読みながら「OK」で進んでください。<br>
+              読み終わったら<strong>【確認】</strong>を押し、クリアしたら<strong>【次へ進もう】</strong>で第1章へ進みます。
+            </p>
+            <p>
+              ※パネルが狭くて見づらいときは、サイドバーの<strong>左端をドラッグ</strong>すると、幅を広げられます。
+            </p>
           </div>
         </div>
 
@@ -257,7 +283,76 @@
             <h3>導入完了！</h3>
             <p>
               以上でアドオンの導入は完了です。<br>
-              チュートリアルを開始して、Blenderの操作を学んでいきましょう。
+              チュートリアルを進めて、Blenderの操作を学んでいきましょう。
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 記録用アドオンの導入 -->
+      <h3 class="install-sub" id="install-logger">記録用アドオンの導入（比較実験の確認テスト用）</h3>
+      <p class="install-sub-desc">
+        比較実験にご協力いただく方（アドオン版・動画版の両方）が、確認テストを受けるために入れるアドオンです。<br>
+        入れ方は、上の手順の<strong>ステップ1〜7と同じ</strong>です（ダウンロードするページとZIPの名前だけが違います）。
+      </p>
+      <div class="install-flow">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>記録用アドオンをダウンロードして、インストールする</h3>
+            <p>
+              <a href="https://github.com/nakasone096/blender-comparison-logger" target="_blank" rel="noopener">記録用アドオンのGitHubページ</a>で、
+              上のステップ1〜3と同じように「<strong>Code</strong>」→「<strong>Download ZIP</strong>」でダウンロードし、デスクトップに置きます。<br>
+              ZIPの名前は <code>blender-comparison-logger-main.zip</code> です。<span class="step-caution">⚠ 解凍はしないでください。</span><br>
+              そのあと、上のステップ5〜7と同じ手順（「編集」→「プリファレンス」→「アドオン」→「∨」→「ディスクからインストール」）で、
+              この<code>blender-comparison-logger-main.zip</code>を選んでインストールします。
+            </p>
+          </div>
+        </div>
+
+        <div class="step-arrow">▼</div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>「Logger」タブを開いて確認する</h3>
+            <p>
+              3Dビュー上で「<strong>N キー</strong>」を押し、サイドバーに「<strong>Logger</strong>」タブが表示されていれば成功です。
+              下の画像のように、「<strong>比較実験ツール</strong>」のパネルが開きます。
+            </p>
+            <img src="step-logger.png?v=2" alt="比較実験ツール（Loggerパネル）の画面" class="step-img">
+          </div>
+        </div>
+
+        <div class="step-arrow">▼</div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>参加者IDと「群」を設定する</h3>
+            <p>
+              「<strong>参加者ID</strong>」に学籍番号を入力し、「<strong>群</strong>」で、<strong>実施者に案内された方法</strong>
+              （<strong>アドオン版</strong>／<strong>動画版</strong>）を選んでください。<br>
+              「ログ保存フォルダ」は<strong>空欄のまま</strong>で構いません（デスクトップに「学籍番号_群」のフォルダが自動で作られます）。
+            </p>
+            <p>
+              ・<strong>動画版</strong>の方：学習を始める前に「<strong>計測開始</strong>」を押し、学習が終わったら「<strong>計測終了</strong>」を押します。<br>
+              ・<strong>全員</strong>：学習が終わったら「<strong>テスト開始</strong>」を押して、確認テストを受けます。
+              テストが終わると、提出用の<strong>.zipファイル</strong>が自動で作られます（<a href="#faq">FAQ</a>をご覧ください）。
+            </p>
+          </div>
+        </div>
+
+        <div class="step-arrow">▼</div>
+
+        <div class="step step--complete">
+          <div class="step-num step-num--complete">✓</div>
+          <div class="step-body">
+            <h3>準備完了！</h3>
+            <p>
+              当日の進め方は、<a href="experiment.html">当日の案内ページ（参加者用）</a>をご覧ください。
             </p>
           </div>
         </div>
@@ -316,8 +411,8 @@
           </button>
           <div class="faq-body">
             <p>操作が完了していない可能性があります。<br>
-            パネル内のヒントをよく読んで、手順通りに操作してから再度「確認」ボタンを押してみてください。<br>
-            失敗するたびにヒントが追加表示されます。</p>
+            パネル内の説明とヒントをよく読んで、手順どおりに操作してから、もう一度<strong>【確認】</strong>を押してみてください。<br>
+            失敗するたびにヒントが追加表示されます。難易度が「ふつう」のときは、<strong>【手順を見る】</strong>を押すと手順が表示されます。</p>
           </div>
         </div>
 
@@ -340,6 +435,76 @@
         <div class="faq-item">
           <button class="faq-header" onclick="toggleFaq(this)">
             <span class="faq-q">Q</span>
+            <span class="faq-title">インストールしたのに、画面が古い・エラーが出る</span>
+            <span class="faq-arrow">▼</span>
+          </button>
+          <div class="faq-body">
+            <p>アドオンを入れ直したあとは、<strong>Blenderを完全に終了して、起動し直してください。</strong><br>
+            起動したままだと、古い部分と新しい部分が混ざって、エラーが出ることがあります。</p>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-header" onclick="toggleFaq(this)">
+            <span class="faq-q">Q</span>
+            <span class="faq-title">難易度は変えられる？</span>
+            <span class="faq-arrow">▼</span>
+          </button>
+          <div class="faq-body">
+            <p>パネル上部の「難易度」で、<strong>かんたん／ふつう／むずかしい</strong>を選べます。学習の途中でも変えられます。</p>
+            <ul>
+              <li><strong>かんたん</strong>：手順がすべて表示されます</li>
+              <li><strong>ふつう</strong>：機能の説明とショートカットが表示されます。手順は<strong>【手順を見る】</strong>で確認できます</li>
+              <li><strong>むずかしい</strong>：機能の説明だけが表示されます</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-header" onclick="toggleFaq(this)">
+            <span class="faq-q">Q</span>
+            <span class="faq-title">「フリー」とは？ お手本の使い方は？</span>
+            <span class="faq-arrow">▼</span>
+          </button>
+          <div class="faq-body">
+            <p>チャプター選択の右下にある<strong>【フリー】</strong>は、判定のない自由な練習の場です。</p>
+            <ul>
+              <li>【フリー】を押しても、シーンはそのままです。<strong>【セットアップ】</strong>を押すと、何もない空のシーンになります</li>
+              <li>「お手本」の枠にある<strong>【ミニチュアハウス】</strong><strong>【三角コーン】</strong>を押すと、お手本が、となりに出ます。見るだけで、動かせません。作り方は自由で、正解や判定はありません</li>
+              <li>お手本は<strong>【お手本を消す】</strong>で消せます（自分で作ったものは消えません）</li>
+              <li>元のステージに戻るときは、章のボタンを押して、【セットアップ】を押します</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-header" onclick="toggleFaq(this)">
+            <span class="faq-q">Q</span>
+            <span class="faq-title">パネルが狭くて見づらい</span>
+            <span class="faq-arrow">▼</span>
+          </button>
+          <div class="faq-body">
+            <p>サイドバー（パネルが出ている領域）の<strong>左端をドラッグ</strong>すると、幅を広げられます。</p>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-header" onclick="toggleFaq(this)">
+            <span class="faq-q">Q</span>
+            <span class="faq-title">確認テストが終わったら、何をアップロードすればいい？（比較実験）</span>
+            <span class="faq-arrow">▼</span>
+          </button>
+          <div class="faq-body">
+            <p>テストが終わると、ログ保存フォルダと同じ場所（初期設定ではデスクトップ）に、
+            <strong>「学籍番号_addon.zip」</strong>（動画版は「学籍番号_video.zip」）が<strong>自動で作られます</strong>。<br>
+            アンケートの最後の質問には、<strong>フォルダではなく、この「.zip」のファイル</strong>をアップロードしてください。</p>
+            <p>見つからないときは、Loggerパネルの<strong>「ログのZIPを作る」</strong>を押すと、作り直せます。</p>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-header" onclick="toggleFaq(this)">
+            <span class="faq-q">Q</span>
             <span class="faq-title">最新バージョンに更新したい</span>
             <span class="faq-arrow">▼</span>
           </button>
@@ -351,7 +516,7 @@
               <li>Blenderの「編集」→「プリファレンス」→「アドオン」にある古い「3DCG Tutorial Simulator」（削除ボタン）</li>
             </ul>
             <p>※デスクトップの「学籍番号_addon」フォルダには記録データが入っているので、<strong>削除しないでください</strong>。</p>
-            <p>削除後、<a href="#install">導入手順</a>の最初から進めてください。</p>
+            <p>削除後、<a href="#install">導入手順</a>の最初から進めてください。<strong>入れ直したら、Blenderを完全に終了して、起動し直してください。</strong></p>
           </div>
         </div>
 

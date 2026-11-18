@@ -872,3 +872,16 @@ footer small {
 @media (max-width: 600px) {
   .ref-row { flex-direction: column; }
 }
+
+
+/* 導入手順の小見出し（記録用アドオンの導入など） */
+.install-sub {
+  text-align: center;
+  margin: 56px 0 8px;
+  font-size: 22px;
+}
+.install-sub-desc {
+  text-align: center;
+  margin-bottom: 24px;
+  color: var(--color-text-sub, inherit);
+}
