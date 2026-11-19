@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '3.4.0';
+const APP_VERSION = '3.5.0';
 // 目標のセット数・回数の初期値（種目ごとに変えられる）
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
@@ -56,14 +56,18 @@ const DEFAULT_EXERCISES = [
   ['ex-leg-extension', 'レッグエクステンション', 'leg'],
   ['ex-leg-curl', 'レッグカール', 'leg'],
   ['ex-calf-raise', 'カーフレイズ', 'leg'],
+  ['ex-bench-light', 'ベンチプレス（軽め）', 'chest', { sets: 3, reps: 5, increment: 2.5 }],
+  ['ex-crunch', '腹筋（クランチ）', 'other', { sets: 3, reps: 12 }],
 ];
-// 初期メニュー（5分割）。同じ筋肉が連続しない順番。中身はその部位に登録されている種目
+// 初期メニュー（5分割・3種目＋1）。同じ筋肉が連続しない順番。
+// その日の部位3種目に、頻度の補強や弱点の補強として別の部位を1種目（最後）足す。
+// BIG3 の重いセットは ensureHeavySetup が元の種目の前に入れる
 const DEFAULT_SPLIT = [
-  ['m-chest', '胸の日', 'chest'],
-  ['m-back', '背中の日', 'back'],
-  ['m-leg', '足の日', 'leg'],
-  ['m-shoulder', '肩の日', 'shoulder'],
-  ['m-arm', '腕の日', 'arm'],
+  ['m-chest', '胸の日', ['ex-bench', 'ex-incline-bench', 'ex-pec-fly', 'ex-crunch']],
+  ['m-back', '背中の日', ['ex-deadlift', 'ex-lat-pulldown', 'ex-seated-row', 'ex-rear-raise']],
+  ['m-leg', '足の日', ['ex-squat', 'ex-leg-press', 'ex-leg-curl', 'ex-crunch']],
+  ['m-shoulder', '肩の日', ['ex-shoulder-press', 'ex-side-raise', 'ex-rear-raise', 'ex-bench-light']],
+  ['m-arm', '腕の日', ['ex-curl', 'ex-pushdown', 'ex-hammer-curl', 'ex-calf-raise']],
 ];
 const FREE_DAY = 'F';
 // 旧バージョン（A日/B日）の記録の表示名
@@ -177,11 +181,8 @@ function sessionDayLabel(s) {
   return dayLabel(s.day, s.dayName);
 }
 function defaultMenus(exercises) {
-  return DEFAULT_SPLIT.map(([id, name, part]) => ({
-    id,
-    name,
-    exerciseIds: exercises.filter((e) => !e.archived && e.part === part).sort((a, b) => a.order - b.order).map((e) => e.id),
-  }));
+  const active = new Set(exercises.filter((e) => !e.archived).map((e) => e.id));
+  return DEFAULT_SPLIT.map(([id, name, ids]) => ({ id, name, exerciseIds: ids.filter((x) => active.has(x)) }));
 }
 
 // 種目 id を持たない記録（旧形式など）に、名前で種目を割り当てる。
@@ -218,7 +219,7 @@ async function ensureCatalog() {
       exercises = await DB.req(s.exercises.getAll());
     } else {
       // 初回起動 or v1 からの移行
-      exercises = DEFAULT_EXERCISES.map(([id, name, part], i) => ({ id, name, part, order: i, archived: false }));
+      exercises = DEFAULT_EXERCISES.map(([id, name, part, extra], i) => ({ id, name, part, order: i, archived: false, ...extra }));
       const sessions = await DB.req(s.sessions.getAll());
       const added = resolveSessionExercises(sessions, exercises);
       exercises.push(...added);
