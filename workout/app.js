@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '3.11.0';
+const APP_VERSION = '3.12.0';
 // 目標のセット数・回数の初期値（種目ごとに変えられる）
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
@@ -59,15 +59,15 @@ const DEFAULT_EXERCISES = [
   ['ex-bench-light', 'ベンチプレス（軽め）', 'chest', { sets: 3, reps: 5, increment: 2.5 }],
   ['ex-crunch', '腹筋（クランチ）', 'other', { sets: 3, reps: 12 }],
 ];
-// 初期メニュー（5分割・3種目＋1）。同じ筋肉が連続しない順番。
+// 初期メニュー（5分割・3種目＋1）。並び順が自動判定で回る順（胸→背中→腕→肩→足）。
 // その日の部位3種目に、頻度の補強や弱点の補強として別の部位を1種目（最後）足す。
 // BIG3 の重いセットは ensureHeavySetup が元の種目の前に入れる
 const DEFAULT_SPLIT = [
   ['m-chest', '胸の日', ['ex-bench', 'ex-incline-bench', 'ex-pec-fly', 'ex-crunch']],
   ['m-back', '背中の日', ['ex-deadlift', 'ex-lat-pulldown', 'ex-seated-row', 'ex-rear-raise']],
-  ['m-leg', '足の日', ['ex-squat', 'ex-leg-press', 'ex-leg-curl', 'ex-crunch']],
-  ['m-shoulder', '肩の日', ['ex-shoulder-press', 'ex-side-raise', 'ex-rear-raise', 'ex-bench-light']],
   ['m-arm', '腕の日', ['ex-curl', 'ex-pushdown', 'ex-hammer-curl', 'ex-calf-raise']],
+  ['m-shoulder', '肩の日', ['ex-shoulder-press', 'ex-side-raise', 'ex-rear-raise', 'ex-bench-light']],
+  ['m-leg', '足の日', ['ex-squat', 'ex-leg-press', 'ex-leg-curl', 'ex-crunch']],
 ];
 const FREE_DAY = 'F';
 // 旧バージョン（A日/B日）の記録の表示名
@@ -259,6 +259,22 @@ async function ensureHeavySetup() {
     }
     if (config) s.meta.put({ ...config, menus });
     s.meta.put({ key: 'heavy-setup', done: true });
+  });
+}
+
+// メニューの順番（＝自動判定で回る順）を 胸→背中→腕→肩→足 に一度だけ並べ替える。
+// 初期メニュー以外（自分で作ったメニュー）は、その後ろに今の順番のまま並べる
+async function ensureMenuOrderSetup() {
+  await DB.run(['meta'], 'readwrite', async (s) => {
+    if (await DB.req(s.meta.get('menu-order-v2'))) return;
+    const config = await DB.req(s.meta.get('config'));
+    if (config && Array.isArray(config.menus)) {
+      const order = DEFAULT_SPLIT.map(([id]) => id);
+      const known = order.map((id) => config.menus.find((m) => m.id === id)).filter(Boolean);
+      const others = config.menus.filter((m) => !order.includes(m.id));
+      s.meta.put({ ...config, menus: [...known, ...others] });
+    }
+    s.meta.put({ key: 'menu-order-v2', done: true });
   });
 }
 
@@ -455,10 +471,26 @@ function lastDoneByPart() {
   }
   return last;
 }
+// 部位の並びはメニューの順番（自動判定で回る順）に合わせる。
+// 各メニューの部位は、軽め種目を除いて一番多い部位（＋1種目に引っ張られない）
+function recoveryOrder() {
+  const order = [];
+  for (const m of state.menus) {
+    const count = {};
+    for (const id of menuExerciseIds(m.id)) {
+      const e = exById(id);
+      if (e && !isLight(e) && RECOVERY_PARTS.includes(e.part)) count[e.part] = (count[e.part] || 0) + 1;
+    }
+    const top = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+    if (top && !order.includes(top)) order.push(top);
+  }
+  return [...order, ...RECOVERY_PARTS.filter((p) => !order.includes(p))];
+}
+
 function renderRecovery() {
   const last = lastDoneByPart();
   const today = todayStr();
-  document.getElementById('recovery').replaceChildren(...RECOVERY_PARTS.map((part) => {
+  document.getElementById('recovery').replaceChildren(...recoveryOrder().map((part) => {
     const date = last[part];
     const days = date ? Math.max(0, daysBetween(date, today)) : null;
     const when = days == null ? '記録なし' : days === 0 ? '今日' : days === 1 ? '昨日' : `${days}日前`;
@@ -2230,6 +2262,7 @@ async function init() {
     await ensureCatalog();
     await ensureHeavySetup();
     await ensureSupersetSetup();
+    await ensureMenuOrderSetup();
     await reloadData();
   } catch (e) {
     console.error(e);
