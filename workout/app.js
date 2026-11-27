@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '3.5.0';
+const APP_VERSION = '3.6.0';
 // 目標のセット数・回数の初期値（種目ごとに変えられる）
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
@@ -431,6 +431,26 @@ function selectDay(day) {
 }
 
 // ---------- ウォーミングアップ（BIG3 の重いセット） ----------
+// ---------- 重いセットの推奨重量（推定1RM × 回数ごとの割合） ----------
+const HEAVY_PCT = [[1, 0.95], [3, 0.87], [5, 0.80]];
+// 1〜5回の割合。表の間は直線で補う（それ以外の回数は対象外）
+function heavyPercent(reps) {
+  for (let i = 0; i < HEAVY_PCT.length - 1; i++) {
+    const [r0, p0] = HEAVY_PCT[i];
+    const [r1, p1] = HEAVY_PCT[i + 1];
+    if (reps >= r0 && reps <= r1) return p0 + ((p1 - p0) * (reps - r0)) / (r1 - r0);
+  }
+  return null;
+}
+// BIG3 の推定1RM（元の種目と重いセットの記録から）から、目標回数の推奨重量を出す
+function heavyGuide(mainId, reps) {
+  const pct = heavyPercent(reps);
+  if (pct == null) return null;
+  const e1rmBest = personalBests(liftIds(mainId), state.editingId).e1rm;
+  if (e1rmBest == null) return null;
+  return { e1rm: e1rmBest, pct, weight: roundTo(e1rmBest * pct, 2.5) };
+}
+
 function roundTo(x, step) {
   return Math.round(x / step) * step;
 }
@@ -485,7 +505,11 @@ function renderExerciseCard(exId) {
   // 重いセットで2回続けて届かなかったら、10%下げて組み直す
   const stalled = !prevAchieved && ex.heavyOf ? stalledWeight(exId) : null;
   const reset = stalled != null ? Math.max(inc, Math.round((stalled * 0.9) / inc) * inc) : null;
-  const suggested = prevBase == null ? null : prevAchieved ? prevBase + inc : reset != null ? reset : prevBase;
+  // 重いセットの記録がまだなければ、推定1RMからの推奨重量を使う
+  const guide = ex.heavyOf ? heavyGuide(ex.heavyOf, target.reps) : null;
+  const suggested = prevBase == null ? (guide ? guide.weight : null) : prevAchieved ? prevBase + inc : reset != null ? reset : prevBase;
+  const guideLine = guide ? el('div', { class: 'guide' },
+    `目安：推定1RM ${fmtNum(guide.e1rm)}kg × ${fmtNum(Math.round(guide.pct * 1000) / 10)}% → ${target.reps}回なら ${fmtNum(guide.weight)}kg`) : null;
 
   const badgeWrap = el('span', { class: 'badge-wrap' });
   const updateBadge = () => {
@@ -499,9 +523,10 @@ function renderExerciseCard(exId) {
       el('div', {}, '前回 ', el('span', {}, fmtDate(prev.session.date, false)), '： ', el('strong', {}, setsText(prev.ex))),
       prevAchieved ? el('div', { class: 'hint' }, `前回 同じ重さで${target.sets}セット×${target.reps}回達成 → 今回 +${fmtNum(inc)}kg（${fmtNum(suggested)}kg）`) : null,
       reset != null ? el('div', { class: 'hint warn' }, `2回続けて${target.sets}×${target.reps}に届かなかったので、10%下げて組み直し（${fmtNum(reset)}kg）`) : null,
+      guideLine,
     );
   } else {
-    prevBox = el('div', { class: 'prev' }, '前回の記録なし');
+    prevBox = el('div', { class: 'prev' }, '前回の記録なし', guideLine);
   }
 
   // BIG3 の重いセットには、ウォーミングアップのチェックリストを出す（過去の記録の編集中は出さない）
