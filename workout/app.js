@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '3.6.0';
+const APP_VERSION = '3.7.0';
 // 目標のセット数・回数の初期値（種目ごとに変えられる）
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
@@ -84,6 +84,9 @@ const state = {
   order: [],          // 記録画面に並べる種目 id
   inputs: {},         // { 種目id: [{weight:'', reps:''} x4] }
   warmup: {},         // { 種目id: [チェック済みの段階番号] }（記録には残さない）
+  done: {},           // { 種目id: [完了にしたセット番号] }（記録には残さない）
+  timer: null,        // 休憩タイマー { endAt, total, label }
+  sessionStart: null, // 最初にセットを完了にした時刻
   chartExercise: null,
   chartMetric: 'top',
   big3: null,         // { squat, bench, deadlift: 種目id, goal: kg }
@@ -345,6 +348,7 @@ function applyDay(day) {
   state.inputs = {};
   state.order.forEach((id) => { state.inputs[id] = emptySets(id); });
   state.warmup = {};
+  state.done = {};
 }
 function removeFromSession(exId) {
   state.order = state.order.filter((id) => id !== exId);
@@ -358,6 +362,7 @@ function saveDraft() {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({
       day: state.day, dayOverridden: state.dayOverridden, date: state.date,
       editingId: state.editingId, order: state.order, inputs: state.inputs, warmup: state.warmup,
+      done: state.done, timer: state.timer, sessionStart: state.sessionStart,
     }));
   } catch (_) { /* 保存できない環境では無視 */ }
 }
@@ -376,6 +381,9 @@ function loadDraft() {
       day: d.day, dayOverridden: !!d.dayOverridden, date: d.date || todayStr(),
       editingId: d.editingId || null, order, inputs: {},
       warmup: d.warmup && typeof d.warmup === 'object' ? d.warmup : {},
+      done: d.done && typeof d.done === 'object' ? d.done : {},
+      timer: d.timer && d.timer.endAt > Date.now() ? d.timer : null,
+      sessionStart: Number(d.sessionStart) || null,
     });
     order.forEach((id) => { state.inputs[id] = Array.isArray(d.inputs[id]) ? d.inputs[id] : emptySets(id); });
     return true;
@@ -384,6 +392,8 @@ function loadDraft() {
 
 function resetRecordForm() {
   state.editingId = null;
+  state.timer = null;
+  state.sessionStart = null;
   state.dayOverridden = false;
   state.date = todayStr();
   applyDay(nextDay());
@@ -431,6 +441,166 @@ function selectDay(day) {
 }
 
 // ---------- ウォーミングアップ（BIG3 の重いセット） ----------
+// ---------- インターバルタイマー ----------
+const REST_OPTIONS = [60, 75, 90, 120, 150, 180, 240];
+const HEAVY_REST = 180;
+const COMPOUND_REST = 150;
+const ISOLATION_REST = 75;
+// 名前で多関節種目を見分ける（フレンチプレスは名前に「プレス」があるが単関節）
+const COMPOUND_WORDS = ['プレス', 'ロウ', 'プルダウン', 'スクワット', 'デッド', 'ディップス', '懸垂'];
+const ISOLATION_WORDS = ['フレンチプレス'];
+
+function defaultRest(e) {
+  if (!e) return ISOLATION_REST;
+  if (e.heavyOf) return HEAVY_REST;
+  if (ISOLATION_WORDS.some((w) => e.name.includes(w))) return ISOLATION_REST;
+  return COMPOUND_WORDS.some((w) => e.name.includes(w)) ? COMPOUND_REST : ISOLATION_REST;
+}
+function restFor(exId) {
+  const e = exById(exId);
+  return e?.restSec || defaultRest(e);
+}
+function fmtClock(sec) {
+  const s = Math.max(0, Math.ceil(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+const rest = { tick: null, doneTimer: null, wakeLock: null, audio: null };
+
+// 音は操作（タップ）のときに準備しておかないと鳴らせない
+function primeAudio() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!rest.audio) rest.audio = new Ctx();
+    if (rest.audio.state === 'suspended') rest.audio.resume();
+  } catch (_) { /* 音が使えない環境では無視 */ }
+}
+function beep() {
+  const ctx = rest.audio;
+  if (!ctx) return;
+  try {
+    for (let i = 0; i < 3; i++) {
+      const t = ctx.currentTime + i * 0.25;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.4, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.2);
+    }
+  } catch (_) { /* noop */ }
+}
+
+// タイマー中は画面が消えないようにする（対応していない端末では何もしない）
+async function holdWakeLock() {
+  if (rest.wakeLock || !('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
+  try {
+    rest.wakeLock = await navigator.wakeLock.request('screen');
+    rest.wakeLock.addEventListener('release', () => { rest.wakeLock = null; });
+  } catch (_) { rest.wakeLock = null; }
+}
+function releaseWakeLock() {
+  if (rest.wakeLock) rest.wakeLock.release().catch(() => {});
+  rest.wakeLock = null;
+}
+
+function startRest(exId, setNo) {
+  primeAudio();
+  const total = restFor(exId);
+  if (!state.sessionStart) state.sessionStart = Date.now();
+  state.timer = { endAt: Date.now() + total * 1000, total, label: `${exName(exId)}\n${setNo}/${targetFor(exId).sets}セット完了` };
+  saveDraft();
+  holdWakeLock();
+  runRest();
+}
+
+function extendRest(sec) {
+  if (!state.timer) return;
+  state.timer.endAt += sec * 1000;
+  state.timer.total += sec;
+  saveDraft();
+  renderRest();
+}
+
+function stopRest() {
+  state.timer = null;
+  clearInterval(rest.tick);
+  rest.tick = null;
+  releaseWakeLock();
+  saveDraft();
+  renderRest();
+}
+
+function runRest() {
+  clearInterval(rest.tick);
+  clearTimeout(rest.doneTimer);
+  rest.tick = setInterval(renderRest, 250);
+  renderRest();
+}
+
+function finishRest() {
+  const late = Date.now() - state.timer.endAt;
+  clearInterval(rest.tick);
+  rest.tick = null;
+  state.timer = null;
+  saveDraft();
+  releaseWakeLock();
+  // 画面を見ているときだけ知らせる（裏にいた間に終わった分は、戻ったときに表示だけする）
+  if (document.visibilityState === 'visible' && late < 3000) {
+    beep();
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  }
+  const box = document.getElementById('rest-timer');
+  box.hidden = false;
+  box.classList.add('done');
+  document.getElementById('rt-label').textContent = '次のセットへ';
+  document.getElementById('rt-time').textContent = '休憩終了';
+  document.getElementById('rt-fill').style.width = '100%';
+  document.getElementById('rt-add').hidden = true;
+  document.getElementById('rt-skip').textContent = '閉じる';
+  rest.doneTimer = setTimeout(() => renderRest(), 6000);
+}
+
+function renderRest() {
+  const box = document.getElementById('rest-timer');
+  const t = state.timer;
+  if (!t) {
+    box.hidden = true;
+    box.classList.remove('done');
+    return;
+  }
+  const left = (t.endAt - Date.now()) / 1000;
+  if (left <= 0) { finishRest(); return; }
+  box.hidden = false;
+  box.classList.remove('done');
+  document.getElementById('rt-label').textContent = t.label;
+  document.getElementById('rt-time').textContent = fmtClock(left);
+  document.getElementById('rt-fill').style.width = `${Math.min(100, ((t.total - left) / t.total) * 100)}%`;
+  document.getElementById('rt-add').hidden = false;
+  document.getElementById('rt-skip').textContent = 'スキップ';
+  const elapsed = state.sessionStart ? Math.floor((Date.now() - state.sessionStart) / 60000) : null;
+  document.getElementById('rt-elapsed').textContent = elapsed != null ? `開始から${elapsed}分` : '';
+}
+
+function setupRest() {
+  document.getElementById('rt-add').addEventListener('click', () => extendRest(30));
+  document.getElementById('rt-skip').addEventListener('click', () => {
+    clearTimeout(rest.doneTimer);
+    stopRest();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (state.timer) { holdWakeLock(); runRest(); }
+  });
+  // 再読み込みのあとは音の準備が消えるので、休憩中に画面をタップしたら準備し直す
+  document.addEventListener('pointerdown', () => { if (state.timer) primeAudio(); });
+  if (state.timer) { holdWakeLock(); runRest(); }
+}
+
 // ---------- 重いセットの推奨重量（推定1RM × 回数ごとの割合） ----------
 const HEAVY_PCT = [[1, 0.95], [3, 0.87], [5, 0.80]];
 // 1〜5回の割合。表の間は直線で補う（それ以外の回数は対象外）
@@ -532,8 +702,10 @@ function renderExerciseCard(exId) {
   // BIG3 の重いセットには、ウォーミングアップのチェックリストを出す（過去の記録の編集中は出さない）
   const warmup = ex.heavyOf && !state.editingId ? renderWarmup(ex, inputs, suggested) : null;
 
-  const grid = el('div', { class: 'sets' },
-    el('span', { class: 'col-h' }, ''), el('span', { class: 'col-h' }, '重量 (kg)'), el('span', { class: 'col-h' }, '回数'));
+  const withDone = !state.editingId;
+  const grid = el('div', { class: withDone ? 'sets with-done' : 'sets' },
+    el('span', { class: 'col-h' }, ''), el('span', { class: 'col-h' }, '重量 (kg)'), el('span', { class: 'col-h' }, '回数'),
+    withDone ? el('span', { class: 'col-h' }, '完了') : null);
   const prevSets = prev ? prev.ex.sets : [];
   const weightInputs = [];
   inputs.forEach((set, i) => {
@@ -572,6 +744,27 @@ function renderExerciseCard(exId) {
     rIn.addEventListener('input', () => { set.reps = rIn.value.trim(); markDone(); updateBadge(); saveDraft(); });
     weightInputs.push(wIn);
     grid.append(el('span', { class: 'set-no' }, `${i + 1}`), wIn, rIn);
+    if (withDone) {
+      const isDone = () => (state.done[exId] || []).includes(i);
+      const doneBtn = el('button', {
+        type: 'button', class: 'set-done', 'aria-pressed': String(isDone()),
+        'aria-label': `${ex.name} ${i + 1}セット目を完了にして休憩を始める`,
+      }, '✓');
+      doneBtn.addEventListener('click', () => {
+        const list = new Set(state.done[exId] || []);
+        if (list.has(i)) {
+          list.delete(i);
+        } else {
+          if (toNum(rIn.value) == null) { toast('回数を入れてから完了にしてください'); rIn.focus(); return; }
+          list.add(i);
+          startRest(exId, i + 1);
+        }
+        state.done[exId] = [...list];
+        doneBtn.setAttribute('aria-pressed', String(list.has(i)));
+        saveDraft();
+      });
+      grid.append(doneBtn);
+    }
   });
 
   const fillBtn = suggested != null ? el('button', {
@@ -663,6 +856,7 @@ async function saveSession() {
   const achieved = exercises.filter((e) => achievedTarget(e.sets, e.target)).map((e) => `${e.name} +${fmtNum(incrementFor(e.exerciseId))}kg`);
   const prs = sessionPRs(session);
   resetRecordForm();
+  stopRest();
   renderAll();
   window.scrollTo({ top: 0 });
   toast(achieved.length ? `保存しました。次回アップ：${achieved.join('・')}` : '保存しました');
@@ -739,6 +933,8 @@ function openExerciseDialog({ exercise = null, part = 'chest' } = {}) {
   exDialog.increment = exercise?.increment || null;
   exDialog.sets = exercise?.sets || SET_COUNT;
   exDialog.reps = exercise?.reps || TARGET_REPS;
+  // null のあいだは種目の種類から決まる初期値に従う
+  exDialog.rest = exercise?.restSec || null;
   document.getElementById('exercise-dialog-title').textContent = exercise ? '種目を編集' : '種目を追加';
   const nameIn = document.getElementById('exercise-name');
   nameIn.value = exercise ? exercise.name : '';
@@ -771,6 +967,17 @@ function renderTargetChips() {
   chips('exercise-sets', SET_OPTIONS, 'sets', 'セット');
   chips('exercise-reps', REP_OPTIONS, 'reps', '回');
   document.getElementById('exercise-increment-label').textContent = `${exDialog.sets}セット×${exDialog.reps}回できたら増やす重さ`;
+  const restNow = dialogRest();
+  document.getElementById('exercise-rest').replaceChildren(...REST_OPTIONS.map((n) => el('button', {
+    type: 'button', class: 'chip', role: 'radio', 'aria-checked': String(n === restNow),
+    onclick: () => { exDialog.rest = n; renderTargetChips(); },
+  }, `${n}秒`)));
+}
+
+function dialogRest() {
+  if (exDialog.rest) return exDialog.rest;
+  const name = document.getElementById('exercise-name').value.trim();
+  return defaultRest({ ...(exDialog.editing || {}), name });
 }
 
 function renderIncrementChips() {
@@ -793,13 +1000,13 @@ async function submitExerciseDialog(ev) {
 
   let saved;
   if (exDialog.editing) {
-    saved = { ...exDialog.editing, name, part: exDialog.part, increment: dialogIncrement(), sets: exDialog.sets, reps: exDialog.reps };
+    saved = { ...exDialog.editing, name, part: exDialog.part, increment: dialogIncrement(), sets: exDialog.sets, reps: exDialog.reps, restSec: dialogRest() };
   } else if (dup) {
     // 削除済みの同名種目は復活させる（過去の記録とつながる）
-    saved = { ...dup, part: exDialog.part, increment: dialogIncrement(), sets: exDialog.sets, reps: exDialog.reps, archived: false };
+    saved = { ...dup, part: exDialog.part, increment: dialogIncrement(), sets: exDialog.sets, reps: exDialog.reps, restSec: dialogRest(), archived: false };
   } else {
     const maxOrder = state.exercises.reduce((m, e) => Math.max(m, e.order || 0), 0);
-    saved = { id: genId('ex-'), name, part: exDialog.part, increment: dialogIncrement(), sets: exDialog.sets, reps: exDialog.reps, order: maxOrder + 1, archived: false };
+    saved = { id: genId('ex-'), name, part: exDialog.part, increment: dialogIncrement(), sets: exDialog.sets, reps: exDialog.reps, restSec: dialogRest(), order: maxOrder + 1, archived: false };
   }
   await DB.put('exercises', saved);
   await reloadData();
@@ -921,7 +1128,7 @@ function renderMenu() {
         el('h2', { class: 'card-title' }, p.name, el('span', { class: 'muted small' }, `　${items.length}種目`)),
         el('button', { type: 'button', class: 'text-btn', onclick: () => openExerciseDialog({ part: p.id }) }, '＋ 追加')),
       items.length ? el('ul', { class: 'row-list' }, items.map((e) => el('li', { class: 'row' },
-        el('span', { class: 'row-name' }, e.name, el('span', { class: 'muted small' }, `${targetText(e.id)}・+${fmtNum(incrementFor(e.id))}kg`)),
+        el('span', { class: 'row-name' }, e.name, el('span', { class: 'muted small' }, `${targetText(e.id)}・+${fmtNum(incrementFor(e.id))}kg・休憩${restFor(e.id)}秒`)),
         el('button', { type: 'button', class: 'small-btn', onclick: () => openExerciseDialog({ exercise: e }) }, '編集'),
         el('button', { type: 'button', class: 'small-btn danger', onclick: () => deleteExercise(e) }, '削除'))))
         : el('p', { class: 'muted small row-empty' }, '種目がありません'));
@@ -1466,6 +1673,7 @@ function normalizeExercise(raw) {
     ...(Number(raw.sets) >= 1 && Number(raw.sets) <= MAX_SETS ? { sets: Number(raw.sets) } : {}),
     ...(Number(raw.reps) >= 1 ? { reps: Number(raw.reps) } : {}),
     ...(typeof raw.heavyOf === 'string' ? { heavyOf: raw.heavyOf } : {}),
+    ...(Number(raw.restSec) > 0 ? { restSec: Number(raw.restSec) } : {}),
   };
 }
 
@@ -1705,6 +1913,7 @@ async function init() {
   // 手動変更していない未入力の下書きは自動判定に追従
   if (!state.dayOverridden && !state.editingId && state.day !== nextDay() && !hasAnyInput()) applyDay(nextDay());
   renderAll();
+  setupRest();
 
   // ブラウザによるデータ自動削除を避ける
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
