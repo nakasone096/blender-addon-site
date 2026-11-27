@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '3.7.0';
+const APP_VERSION = '3.8.0';
 // 目標のセット数・回数の初期値（種目ごとに変えられる）
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
@@ -87,6 +87,7 @@ const state = {
   done: {},           // { 種目id: [完了にしたセット番号] }（記録には残さない）
   timer: null,        // 休憩タイマー { endAt, total, label }
   sessionStart: null, // 最初にセットを完了にした時刻
+  memos: {},          // { 種目id: メモ }
   chartExercise: null,
   chartMetric: 'top',
   big3: null,         // { squat, bench, deadlift: 種目id, goal: kg }
@@ -340,7 +341,7 @@ function emptySets(exId) {
   return Array.from({ length: targetFor(exId).sets }, () => ({ weight: '', reps: '' }));
 }
 function hasAnyInput() {
-  return state.order.some((id) => (state.inputs[id] || []).some((s) => s.weight !== '' || s.reps !== ''));
+  return state.order.some((id) => (state.inputs[id] || []).some((s) => s.weight !== '' || s.reps !== '') || (state.memos[id] || '').trim());
 }
 function applyDay(day) {
   state.day = day;
@@ -349,10 +350,12 @@ function applyDay(day) {
   state.order.forEach((id) => { state.inputs[id] = emptySets(id); });
   state.warmup = {};
   state.done = {};
+  state.memos = {};
 }
 function removeFromSession(exId) {
   state.order = state.order.filter((id) => id !== exId);
   delete state.inputs[exId];
+  delete state.memos[exId];
   saveDraft();
 }
 
@@ -362,7 +365,7 @@ function saveDraft() {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({
       day: state.day, dayOverridden: state.dayOverridden, date: state.date,
       editingId: state.editingId, order: state.order, inputs: state.inputs, warmup: state.warmup,
-      done: state.done, timer: state.timer, sessionStart: state.sessionStart,
+      done: state.done, timer: state.timer, sessionStart: state.sessionStart, memos: state.memos,
     }));
   } catch (_) { /* 保存できない環境では無視 */ }
 }
@@ -382,6 +385,7 @@ function loadDraft() {
       editingId: d.editingId || null, order, inputs: {},
       warmup: d.warmup && typeof d.warmup === 'object' ? d.warmup : {},
       done: d.done && typeof d.done === 'object' ? d.done : {},
+      memos: d.memos && typeof d.memos === 'object' ? d.memos : {},
       timer: d.timer && d.timer.endAt > Date.now() ? d.timer : null,
       sessionStart: Number(d.sessionStart) || null,
     });
@@ -694,6 +698,7 @@ function renderExerciseCard(exId) {
       prevAchieved ? el('div', { class: 'hint' }, `前回 同じ重さで${target.sets}セット×${target.reps}回達成 → 今回 +${fmtNum(inc)}kg（${fmtNum(suggested)}kg）`) : null,
       reset != null ? el('div', { class: 'hint warn' }, `2回続けて${target.sets}×${target.reps}に届かなかったので、10%下げて組み直し（${fmtNum(reset)}kg）`) : null,
       guideLine,
+      prev.ex.memo ? el('div', { class: 'prev-memo' }, `前回のメモ：${prev.ex.memo}`) : null,
     );
   } else {
     prevBox = el('div', { class: 'prev' }, '前回の記録なし', guideLine);
@@ -791,7 +796,7 @@ function renderExerciseCard(exId) {
       el('div', { class: 'ex-title' }, el('h3', {}, ex.name), el('span', { class: 'part-tag' }, PART_NAME[ex.part]),
         el('span', { class: 'target-tag' }, `目標 ${target.sets}×${target.reps}`)),
       el('div', { class: 'ex-tools' }, badgeWrap, removeBtn)),
-    prevBox, warmup?.box, grid, fillBtn);
+    prevBox, warmup?.box, grid, fillBtn, renderMemo(ex));
 }
 
 // 直近2回が同じ重さで、どちらも目標に届いていなければ、その重さ
@@ -806,6 +811,28 @@ function stalledWeight(exId) {
   if (recs.length < 2 || recs.some((ex) => achievedTarget(ex.sets, recTarget(ex)))) return null;
   const w = workingWeight(recs[0]);
   return w != null && w === workingWeight(recs[1]) ? w : null;
+}
+
+// 種目ごとのメモ（その日の状況を残す。書いてあれば最初から開いておく）
+function renderMemo(ex) {
+  const wrap = el('div', { class: 'memo' });
+  const text = state.memos[ex.id] || '';
+  const area = el('textarea', {
+    class: 'memo-in', rows: '2', maxlength: '500', 'aria-label': `${ex.name} のメモ`,
+    placeholder: '気づいたこと（例：85kgは最後まで上げきれない。55kgならきれいに上がる）',
+  });
+  area.value = text;
+  area.addEventListener('input', () => {
+    state.memos[ex.id] = area.value;
+    saveDraft();
+  });
+  const open = () => {
+    wrap.replaceChildren(area);
+    area.focus();
+  };
+  if (text) wrap.append(area);
+  else wrap.append(el('button', { type: 'button', class: 'memo-btn', onclick: open }, '＋ メモ'));
+  return wrap;
 }
 
 function addToSession(exId) {
@@ -827,11 +854,15 @@ async function saveSession() {
     const invalid = state.inputs[id].some((s, i) =>
       (s.weight !== '' && sets[i].weight == null) || (s.reps !== '' && sets[i].reps == null));
     if (invalid) { toast(`${name}：数値を正しく入力してください`); return; }
-    if (sets.some((s) => s.reps != null && s.reps > 0)) {
-      exercises.push({ exerciseId: id, name, target: targetFor(id), sets: sets.map((s) => (s.reps ? s : { weight: s.weight, reps: null })) });
+    const memo = (state.memos[id] || '').trim();
+    if (sets.some((s) => s.reps != null && s.reps > 0) || memo) {
+      exercises.push({
+        exerciseId: id, name, target: targetFor(id), sets: sets.map((s) => (s.reps ? s : { weight: s.weight, reps: null })),
+        ...(memo ? { memo } : {}),
+      });
     }
   }
-  if (!exercises.length) { toast('回数が入力されていません'); return; }
+  if (!exercises.length) { toast('回数かメモが入力されていません'); return; }
   if (!state.date) { toast('日付を入力してください'); return; }
 
   const now = Date.now();
@@ -873,9 +904,11 @@ function startEdit(id) {
   state.date = s.date;
   state.order = [];
   state.inputs = {};
+  state.memos = {};
   for (const ex of s.exercises) {
     if (!exById(ex.exerciseId) || state.order.includes(ex.exerciseId)) continue;
     state.order.push(ex.exerciseId);
+    if (ex.memo) state.memos[ex.exerciseId] = ex.memo;
     state.inputs[ex.exerciseId] = Array.from({ length: Math.max(targetFor(ex.exerciseId).sets, ex.sets.length) }, (_, i) => {
       const set = ex.sets[i] || {};
       return { weight: set.weight == null ? '' : fmtNum(set.weight), reps: set.reps == null ? '' : String(set.reps) };
@@ -1180,9 +1213,10 @@ function renderHistory() {
         el('button', { type: 'button', class: 'small-btn', onclick: () => copyText(sessionText(s)) }, 'コピー'),
         el('button', { type: 'button', class: 'small-btn', onclick: () => startEdit(s.id) }, '編集'),
         el('button', { type: 'button', class: 'small-btn danger', onclick: () => deleteSession(s) }, '削除'))),
-    s.exercises.map((ex) => el('div', { class: 'hist-ex' },
+    s.exercises.flatMap((ex) => [el('div', { class: 'hist-ex' },
       el('span', { class: 'name' }, exName(ex.exerciseId, ex.name)),
-      el('span', { class: 'sets-txt' }, setsText(ex), achievedTarget(ex.sets, recTarget(ex)) ? ' ✓' : ''))),
+      el('span', { class: 'sets-txt' }, setsText(ex), achievedTarget(ex.sets, recTarget(ex)) ? ' ✓' : '')),
+    ex.memo ? el('div', { class: 'hist-memo' }, `📝 ${ex.memo}`) : null]),
   )));
 }
 
@@ -1470,7 +1504,8 @@ function renderChart() {
   const tbody = document.querySelector('#chart-table tbody');
   tbody.replaceChildren(...[...pts].reverse().map((p) => el('tr', {},
     el('td', {}, fmtDate(p.date, false)),
-    el('td', {}, setsText(p.ex), achievedTarget(p.ex.sets, recTarget(p.ex)) ? ' ✓' : ''),
+    el('td', {}, setsText(p.ex), achievedTarget(p.ex.sets, recTarget(p.ex)) ? ' ✓' : '',
+      p.ex.memo ? el('div', { class: 'muted small' }, `📝 ${p.ex.memo}`) : null),
     el('td', { class: 'num' }, fmtNum(p.value)))));
   if (!pts.length) { chartGeom = null; return; }
 
@@ -1643,6 +1678,7 @@ function normalizeSession(raw) {
     .map((e) => ({
       exerciseId: typeof e.exerciseId === 'string' ? e.exerciseId : null,
       name: typeof e.name === 'string' ? e.name : '',
+      ...(typeof e.memo === 'string' && e.memo.trim() ? { memo: e.memo.trim().slice(0, 500) } : {}),
       ...(e.target && Number(e.target.sets) > 0 && Number(e.target.reps) > 0
         ? { target: { sets: Number(e.target.sets), reps: Number(e.target.reps) } } : {}),
       sets: e.sets.slice(0, MAX_SETS).map((s) => ({
@@ -1735,8 +1771,9 @@ async function importFromFile(file) {
 function sessionText(s) {
   const lines = [`【${fmtDate(s.date)} ${sessionDayLabel(s)}】`];
   for (const ex of s.exercises) {
-    if (!validSets(ex).length) continue;
+    if (!validSets(ex).length && !ex.memo) continue;
     lines.push(`${exName(ex.exerciseId, ex.name)}：${setsText(ex)}${achievedTarget(ex.sets, recTarget(ex)) ? ` ✓（次回+${fmtNum(incrementFor(ex.exerciseId))}kg）` : ''}`);
+    if (ex.memo) lines.push(`　メモ：${ex.memo.replace(/\s*\n\s*/g, ' ／ ')}`);
   }
   return lines.join('\n');
 }
