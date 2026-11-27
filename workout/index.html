@@ -220,6 +220,20 @@
     </form>
   </dialog>
 
+  <!-- 未記録のセットの確認 -->
+  <dialog id="missing-dialog" class="sheet">
+    <div class="sheet-head">
+      <h2 id="missing-title">未記録のセットがあります</h2>
+      <button type="button" class="icon-btn" data-close aria-label="閉じる">✕</button>
+    </div>
+    <ul id="missing-list" class="missing-list"></ul>
+    <p class="muted small">このまま保存すると、回数が空のセットは記録されません。</p>
+    <div class="btn-col">
+      <button type="button" class="primary-btn" id="missing-back">戻って入力する</button>
+      <button type="button" class="secondary-btn" id="missing-save">このまま保存</button>
+    </div>
+  </dialog>
+
   <!-- 自己ベスト更新 -->
   <dialog id="pr-dialog" class="sheet">
     <div class="sheet-head">

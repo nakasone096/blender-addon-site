@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '3.8.0';
+const APP_VERSION = '3.9.0';
 // 目標のセット数・回数の初期値（種目ごとに変えられる）
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
@@ -337,11 +337,14 @@ function previousRecord(exId) {
   return null;
 }
 
+// 新しく並べる種目の入力欄。重さは提案の重さを実際の値として入れ、回数は空欄にする（入れ忘れ防止）
 function emptySets(exId) {
-  return Array.from({ length: targetFor(exId).sets }, () => ({ weight: '', reps: '' }));
+  const w = exById(exId) ? suggestionFor(exId).suggested : null;
+  return Array.from({ length: targetFor(exId).sets }, () => ({ weight: w == null ? '' : fmtNum(w), reps: '' }));
 }
+// 自分で入れたもの（回数・メモ）があるか。重さは自動で入るので数えない
 function hasAnyInput() {
-  return state.order.some((id) => (state.inputs[id] || []).some((s) => s.weight !== '' || s.reps !== '') || (state.memos[id] || '').trim());
+  return state.order.some((id) => (state.inputs[id] || []).some((s) => s.reps !== '') || (state.memos[id] || '').trim());
 }
 function applyDay(day) {
   state.day = day;
@@ -668,9 +671,9 @@ function renderWarmup(ex, inputs, suggested) {
   return { box, update };
 }
 
-function renderExerciseCard(exId) {
+// 種目の次の重さの提案（前回の結果・組み直し・推定1RMの目安から）
+function suggestionFor(exId) {
   const ex = exById(exId);
-  const inputs = state.inputs[exId];
   const prev = previousRecord(exId);
   const target = targetFor(exId);
   const prevAchieved = prev ? achievedTarget(prev.ex.sets, recTarget(prev.ex)) : false;
@@ -682,6 +685,13 @@ function renderExerciseCard(exId) {
   // 重いセットの記録がまだなければ、推定1RMからの推奨重量を使う
   const guide = ex.heavyOf ? heavyGuide(ex.heavyOf, target.reps) : null;
   const suggested = prevBase == null ? (guide ? guide.weight : null) : prevAchieved ? prevBase + inc : reset != null ? reset : prevBase;
+  return { prev, target, prevAchieved, inc, reset, guide, suggested };
+}
+
+function renderExerciseCard(exId) {
+  const ex = exById(exId);
+  const inputs = state.inputs[exId];
+  const { prev, target, prevAchieved, inc, reset, guide, suggested } = suggestionFor(exId);
   const guideLine = guide ? el('div', { class: 'guide' },
     `目安：推定1RM ${fmtNum(guide.e1rm)}kg × ${fmtNum(Math.round(guide.pct * 1000) / 10)}% → ${target.reps}回なら ${fmtNum(guide.weight)}kg`) : null;
 
@@ -846,6 +856,43 @@ function addToSession(exId) {
   cards[cards.length - 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// 回数が空のセット（メモだけ書いた種目は、意図して記録していないので除く）
+function missingSets() {
+  const lines = [];
+  let count = 0;
+  for (const id of state.order) {
+    const inputs = state.inputs[id] || [];
+    const blank = inputs.map((s, i) => (toNum(s.reps) == null ? i + 1 : null)).filter(Boolean);
+    if (!blank.length) continue;
+    const anyReps = blank.length < inputs.length;
+    if (!anyReps && (state.memos[id] || '').trim()) continue;
+    count += blank.length;
+    lines.push(anyReps ? `${exName(id)}：${blank.join('・')}セット目` : `${exName(id)}：未入力（${inputs.length}セット）`);
+  }
+  return { count, lines };
+}
+
+function confirmMissing(missing) {
+  const dlg = document.getElementById('missing-dialog');
+  document.getElementById('missing-title').textContent = `未記録のセットが${missing.count}件あります`;
+  document.getElementById('missing-list').replaceChildren(...missing.lines.map((t) => el('li', {}, t)));
+  return new Promise((resolve) => {
+    let answer = false;
+    const back = document.getElementById('missing-back');
+    const go = document.getElementById('missing-save');
+    const onBack = () => { answer = false; dlg.close(); };
+    const onGo = () => { answer = true; dlg.close(); };
+    back.addEventListener('click', onBack);
+    go.addEventListener('click', onGo);
+    dlg.addEventListener('close', () => {
+      back.removeEventListener('click', onBack);
+      go.removeEventListener('click', onGo);
+      resolve(answer);
+    }, { once: true });
+    dlg.showModal();
+  });
+}
+
 async function saveSession() {
   const exercises = [];
   for (const id of state.order) {
@@ -864,6 +911,8 @@ async function saveSession() {
   }
   if (!exercises.length) { toast('回数かメモが入力されていません'); return; }
   if (!state.date) { toast('日付を入力してください'); return; }
+  const missing = missingSets();
+  if (missing.count && !(await confirmMissing(missing))) return;
 
   const now = Date.now();
   const existing = state.editingId && state.sessions.find((s) => s.id === state.editingId);

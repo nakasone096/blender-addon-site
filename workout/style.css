@@ -318,6 +318,8 @@ main {
 .data-table .pr-row { cursor: pointer; }
 .data-table .pr-row:active { background: var(--surface-2); }
 .data-table .num .muted { font-size: 11px; }
+.missing-list { margin: 0 0 8px; padding-left: 1.2em; font-size: 15px; }
+.missing-list li { margin-bottom: 4px; }
 .pr-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
 .pr-item { padding: 10px 12px; border-radius: 10px; background: var(--good-soft); }
 .pr-name { font-weight: 700; margin-bottom: 2px; }
