@@ -43,6 +43,18 @@
       <button type="button" id="add-exercise-btn" class="add-btn">＋ 種目を追加</button>
 
       <div class="save-area">
+        <div id="rest-timer" class="rest-timer" role="timer" aria-live="off" hidden>
+          <div class="rt-main">
+            <div class="rt-label" id="rt-label"></div>
+            <div class="rt-time" id="rt-time">0:00</div>
+          </div>
+          <div class="rt-bar"><div class="rt-fill" id="rt-fill"></div></div>
+          <div class="rt-actions">
+            <span class="muted small" id="rt-elapsed"></span>
+            <button type="button" class="small-btn" id="rt-add">+30秒</button>
+            <button type="button" class="small-btn" id="rt-skip">スキップ</button>
+          </div>
+        </div>
         <button type="button" id="save-btn" class="primary-btn">記録を保存</button>
       </div>
     </section>
@@ -198,6 +210,10 @@
       <div class="field">
         <span class="muted small" id="exercise-increment-label">4セット×10回できたら増やす重さ</span>
         <div id="exercise-increment" class="part-chips" role="radiogroup" aria-label="増やす重さ"></div>
+      </div>
+      <div class="field">
+        <span class="muted small">セット間の休憩</span>
+        <div id="exercise-rest" class="part-chips" role="radiogroup" aria-label="セット間の休憩"></div>
       </div>
       <p id="exercise-error" class="error small" hidden></p>
       <button type="submit" class="primary-btn">保存</button>
