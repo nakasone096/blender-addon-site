@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '3.10.0';
+const APP_VERSION = '3.11.0';
 // 目標のセット数・回数の初期値（種目ごとに変えられる）
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
@@ -262,6 +262,29 @@ async function ensureHeavySetup() {
   });
 }
 
+const DEFAULT_SUPERSETS = [['m-arm', 'ex-curl', 'ex-pushdown']];
+async function ensureSupersetSetup() {
+  await DB.run(['meta'], 'readwrite', async (s) => {
+    if (await DB.req(s.meta.get('superset-setup'))) return;
+    const config = await DB.req(s.meta.get('config'));
+    if (config) {
+      const menus = config.menus.map((m) => {
+        const add = DEFAULT_SUPERSETS.filter(([menuId, a, b]) => menuId === m.id && m.exerciseIds.includes(a) && m.exerciseIds.includes(b));
+        if (!add.length) return m;
+        let ids = [...m.exerciseIds];
+        // ペアの2種目を隣に並べる
+        for (const [, a, b] of add) {
+          ids = ids.filter((x) => x !== b);
+          ids.splice(ids.indexOf(a) + 1, 0, b);
+        }
+        return cleanPairs({ ...m, exerciseIds: ids, supersets: [...(m.supersets || []), ...add.map(([, a, b]) => [a, b])] });
+      });
+      s.meta.put({ ...config, menus });
+    }
+    s.meta.put({ key: 'superset-setup', done: true });
+  });
+}
+
 async function saveMenus() {
   await DB.put('meta', { key: 'config', menus: state.menus });
 }
@@ -520,7 +543,12 @@ function renderRecord() {
   document.getElementById('record-empty').hidden = state.order.length > 0;
 
   const list = document.getElementById('exercise-list');
-  list.replaceChildren(...state.order.filter((id) => exById(id)).map(renderExerciseCard));
+  // スーパーセットのペアは1枚のカードにまとめる
+  const pairs = activePairs();
+  const pairFirst = new Map(pairs.map(([a, b]) => [a, b]));
+  const pairSecond = new Set(pairs.map(([, b]) => b));
+  list.replaceChildren(...state.order.filter((id) => exById(id) && !pairSecond.has(id))
+    .map((id) => (pairFirst.has(id) ? renderSupersetCard(id, pairFirst.get(id)) : renderExerciseCard(id))));
 }
 
 function renderDaySwitch() {
@@ -614,11 +642,13 @@ function releaseWakeLock() {
   rest.wakeLock = null;
 }
 
-function startRest(exId, setNo) {
+function startRest(exId, setNo, pair = null) {
   primeAudio();
-  const total = restFor(exId);
+  const ids = pair || [exId];
+  const total = Math.max(...ids.map(restFor));
+  const sets = Math.max(...ids.map((id) => targetFor(id).sets));
   if (!state.sessionStart) state.sessionStart = Date.now();
-  state.timer = { endAt: Date.now() + total * 1000, total, label: `${exName(exId)}\n${setNo}/${targetFor(exId).sets}セット完了` };
+  state.timer = { endAt: Date.now() + total * 1000, total, label: `${ids.map((id) => exName(id)).join(' × ')}\n${setNo}/${sets}セット完了` };
   saveDraft();
   holdWakeLock();
   runRest();
@@ -787,7 +817,8 @@ function suggestionFor(exId) {
   return { prev, target, prevAchieved, inc, reset, guide, suggested };
 }
 
-function renderExerciseCard(exId) {
+// 種目カードの部品（入力欄・前回・メモなど）を作る。tag はスーパーセットの A / B
+function buildExercise(exId, tag = '') {
   const ex = exById(exId);
   const inputs = state.inputs[exId];
   const { prev, target, prevAchieved, inc, reset, guide, suggested } = suggestionFor(exId);
@@ -817,12 +848,9 @@ function renderExerciseCard(exId) {
   const warmup = ex.heavyOf && !state.editingId ? renderWarmup(ex, inputs, suggested) : null;
 
   const withDone = !state.editingId;
-  const grid = el('div', { class: withDone ? 'sets with-done' : 'sets' },
-    el('span', { class: 'col-h' }, ''), el('span', { class: 'col-h' }, '重量 (kg)'), el('span', { class: 'col-h' }, '回数'),
-    withDone ? el('span', { class: 'col-h' }, '完了') : null);
   const prevSets = prev ? prev.ex.sets : [];
   const weightInputs = [];
-  inputs.forEach((set, i) => {
+  const rows = inputs.map((set, i) => {
     const p = prevSets[i];
     const wIn = el('input', {
       class: 'num-in', type: 'text', inputmode: 'decimal', enterkeyhint: 'next', autocomplete: 'off',
@@ -857,28 +885,29 @@ function renderExerciseCard(exId) {
     }
     rIn.addEventListener('input', () => { set.reps = rIn.value.trim(); markDone(); updateBadge(); saveDraft(); });
     weightInputs.push(wIn);
-    grid.append(el('span', { class: 'set-no' }, `${i + 1}`), wIn, rIn);
+    let doneBtn = null;
     if (withDone) {
       const isDone = () => (state.done[exId] || []).includes(i);
-      const doneBtn = el('button', {
+      doneBtn = el('button', {
         type: 'button', class: 'set-done', 'aria-pressed': String(isDone()),
-        'aria-label': `${ex.name} ${i + 1}セット目を完了にして休憩を始める`,
+        'aria-label': `${ex.name} ${i + 1}セット目を完了にする`,
       }, '✓');
       doneBtn.addEventListener('click', () => {
         const list = new Set(state.done[exId] || []);
         if (list.has(i)) {
           list.delete(i);
+          state.done[exId] = [...list];
         } else {
           if (toNum(rIn.value) == null) { toast('回数を入れてから完了にしてください'); rIn.focus(); return; }
           list.add(i);
-          startRest(exId, i + 1);
+          state.done[exId] = [...list];
+          onSetDone(exId, i);
         }
-        state.done[exId] = [...list];
         doneBtn.setAttribute('aria-pressed', String(list.has(i)));
         saveDraft();
       });
-      grid.append(doneBtn);
     }
+    return { no: i + 1, wIn, rIn, doneBtn };
   });
 
   const fillBtn = suggested != null ? el('button', {
@@ -887,12 +916,12 @@ function renderExerciseCard(exId) {
       inputs.forEach((s, j) => { s.weight = fmtNum(suggested); weightInputs[j].value = s.weight; });
       updateBadge(); warmup?.update(); saveDraft();
     },
-  }, `全セットの重量を ${fmtNum(suggested)}kg にする`) : null;
+  }, `${tag ? `${tag}：` : ''}全セットの重量を ${fmtNum(suggested)}kg にする`) : null;
 
   const removeBtn = el('button', {
     type: 'button', class: 'icon-btn', 'aria-label': `${ex.name} を今回の記録から外す`,
     onclick: () => {
-      const filled = inputs.some((s) => s.weight !== '' || s.reps !== '');
+      const filled = inputs.some((s) => s.reps !== '');
       if (filled && !confirm(`${ex.name} の入力を消して外しますか？`)) return;
       removeFromSession(exId);
       renderRecord();
@@ -900,12 +929,68 @@ function renderExerciseCard(exId) {
   }, '✕');
 
   updateBadge();
+  const title = el('div', { class: 'ex-title' },
+    tag ? el('span', { class: 'ss-tag' }, tag) : null,
+    el('h3', {}, ex.name), el('span', { class: 'part-tag' }, PART_NAME[ex.part]),
+    el('span', { class: 'target-tag' }, `目標 ${target.sets}×${target.reps}`));
+  return { ex, withDone, title, badgeWrap, removeBtn, prevBox, warmup, rows, fillBtn, memo: renderMemo(ex, tag) };
+}
+
+function setsGrid(withDone) {
+  return el('div', { class: withDone ? 'sets with-done' : 'sets' },
+    el('span', { class: 'col-h' }, ''), el('span', { class: 'col-h' }, '重量 (kg)'), el('span', { class: 'col-h' }, '回数'),
+    withDone ? el('span', { class: 'col-h' }, '完了') : null);
+}
+
+function renderExerciseCard(exId) {
+  const p = buildExercise(exId);
+  const grid = setsGrid(p.withDone);
+  for (const r of p.rows) grid.append(...[el('span', { class: 'set-no' }, `${r.no}`), r.wIn, r.rIn, r.doneBtn].filter(Boolean));
   return el('div', { class: 'card ex-card' },
-    el('div', { class: 'ex-head' },
-      el('div', { class: 'ex-title' }, el('h3', {}, ex.name), el('span', { class: 'part-tag' }, PART_NAME[ex.part]),
-        el('span', { class: 'target-tag' }, `目標 ${target.sets}×${target.reps}`)),
-      el('div', { class: 'ex-tools' }, badgeWrap, removeBtn)),
-    prevBox, warmup?.box, grid, fillBtn, renderMemo(ex));
+    el('div', { class: 'ex-head' }, p.title, el('div', { class: 'ex-tools' }, p.badgeWrap, p.removeBtn)),
+    p.prevBox, p.warmup?.box, grid, p.fillBtn, p.memo);
+}
+
+// スーパーセット：2種目を1枚のカードにまとめ、セットを交互に並べる
+function renderSupersetCard(aId, bId) {
+  const parts = [buildExercise(aId, 'A'), buildExercise(bId, 'B')];
+  const grid = setsGrid(parts[0].withDone);
+  const n = Math.max(...parts.map((p) => p.rows.length));
+  for (let i = 0; i < n; i++) {
+    parts.forEach((p, k) => {
+      const r = p.rows[i];
+      if (!r) return;
+      grid.append(...[el('span', { class: `set-no ss-no ss-${k ? 'b' : 'a'}` }, `${r.no}${k ? 'B' : 'A'}`), r.wIn, r.rIn, r.doneBtn].filter(Boolean));
+    });
+  }
+  return el('div', { class: 'card ex-card ss-card' },
+    el('div', { class: 'ss-head' }, '⛓ スーパーセット', el('span', { class: 'muted small' }, '（AとBを交互に。両方終えたら休憩）')),
+    parts.map((p) => el('div', { class: 'ss-ex' },
+      el('div', { class: 'ex-head' }, p.title, el('div', { class: 'ex-tools' }, p.badgeWrap, p.removeBtn)),
+      p.prevBox)),
+    grid,
+    parts.map((p) => p.fillBtn),
+    parts.map((p) => p.memo));
+}
+
+// スーパーセットのペア（今のメニューで、両方とも今回の記録に入っているもの）
+function activePairs() {
+  const menu = menuById(state.day);
+  if (!menu || !Array.isArray(menu.supersets)) return [];
+  return menu.supersets.filter(([a, b]) => state.order.includes(a) && state.order.includes(b));
+}
+function partnerOf(exId) {
+  const pair = activePairs().find((p) => p.includes(exId));
+  return pair ? { pair, partner: pair[0] === exId ? pair[1] : pair[0] } : null;
+}
+
+// セットを完了にしたとき。スーパーセットは、同じセットの A と B が両方終わったら休憩を始める
+function onSetDone(exId, i) {
+  const ss = partnerOf(exId);
+  if (!ss) { startRest(exId, i + 1); return; }
+  const partnerSets = (state.inputs[ss.partner] || []).length;
+  const partnerDone = i >= partnerSets || (state.done[ss.partner] || []).includes(i);
+  if (partnerDone) startRest(exId, i + 1, ss.pair);
 }
 
 // 直近2回が同じ重さで、どちらも目標に届いていなければ、その重さ
@@ -923,7 +1008,7 @@ function stalledWeight(exId) {
 }
 
 // 種目ごとのメモ（その日の状況を残す。書いてあれば最初から開いておく）
-function renderMemo(ex) {
+function renderMemo(ex, tag = '') {
   const wrap = el('div', { class: 'memo' });
   const text = state.memos[ex.id] || '';
   const area = el('textarea', {
@@ -940,7 +1025,7 @@ function renderMemo(ex) {
     area.focus();
   };
   if (text) wrap.append(area);
-  else wrap.append(el('button', { type: 'button', class: 'memo-btn', onclick: open }, '＋ メモ'));
+  else wrap.append(el('button', { type: 'button', class: 'memo-btn', onclick: open }, tag ? `＋ ${tag}（${ex.name}）のメモ` : '＋ メモ'));
   return wrap;
 }
 
@@ -1230,7 +1315,31 @@ function setupDialogs() {
 }
 
 // ---------- 種目・メニュー画面 ----------
+// スーパーセットのペアを整える（両方がメニューにあり、隣り合っているものだけ残し、並び順に揃える）
+function cleanPairs(menu) {
+  if (!Array.isArray(menu.supersets)) return menu;
+  const ids = menu.exerciseIds;
+  const used = new Set();
+  const supersets = [];
+  for (const [a, b] of menu.supersets) {
+    const ia = ids.indexOf(a);
+    const ib = ids.indexOf(b);
+    if (ia < 0 || ib < 0 || Math.abs(ia - ib) !== 1 || used.has(a) || used.has(b)) continue;
+    used.add(a); used.add(b);
+    supersets.push(ia < ib ? [a, b] : [b, a]);
+  }
+  return { ...menu, supersets };
+}
+function isPaired(menu, a, b) {
+  return (menu.supersets || []).some((p) => p.includes(a) && p.includes(b));
+}
+function togglePair(menu, a, b) {
+  const rest = (menu.supersets || []).filter((p) => !p.includes(a) && !p.includes(b));
+  return updateMenu(menu.id, { supersets: isPaired(menu, a, b) ? rest : [...rest, [a, b]] });
+}
+
 async function setMenus(menus, changedId) {
+  menus = menus.map(cleanPairs);
   state.menus = menus;
   await saveMenus();
   afterMenuChange(changedId);
@@ -1287,8 +1396,16 @@ function renderMenu() {
             },
           }),
         }, '＋ 種目')),
-      ids.length ? el('ul', { class: 'row-list' }, ids.map((id, i) => el('li', { class: 'row' },
+      ids.length ? el('ul', { class: 'row-list' }, ids.map((id, i) => el('li', {
+        class: `row${(m.supersets || []).some((pp) => pp.includes(id)) ? ' paired' : ''}`,
+      },
         el('span', { class: 'row-name' }, exName(id), el('span', { class: 'part-tag' }, PART_NAME[exById(id).part])),
+        i < ids.length - 1 ? el('button', {
+          type: 'button', class: 'icon-btn pair-btn', 'aria-pressed': String(isPaired(m, id, ids[i + 1])),
+          'aria-label': `${exName(id)} と ${exName(ids[i + 1])} をスーパーセットにする`,
+          title: 'すぐ下の種目とスーパーセット',
+          onclick: () => togglePair(m, id, ids[i + 1]),
+        }, '⛓') : el('span', { class: 'pair-spacer' }),
         el('button', { type: 'button', class: 'icon-btn', 'aria-label': '上へ', disabled: i === 0, onclick: () => move(i, -1) }, '↑'),
         el('button', { type: 'button', class: 'icon-btn', 'aria-label': '下へ', disabled: i === ids.length - 1, onclick: () => move(i, 1) }, '↓'),
         el('button', {
@@ -1895,7 +2012,12 @@ async function importFromFile(file) {
   const importedMenus = Array.isArray(data.menus)
     ? data.menus
       .filter((m) => m && typeof m.id === 'string' && typeof m.name === 'string' && m.name.trim())
-      .map((m) => ({ id: m.id, name: m.name.trim(), exerciseIds: (Array.isArray(m.exerciseIds) ? m.exerciseIds : []).filter((x) => typeof x === 'string') }))
+      .map((m) => cleanPairs({
+        id: m.id,
+        name: m.name.trim(),
+        exerciseIds: (Array.isArray(m.exerciseIds) ? m.exerciseIds : []).filter((x) => typeof x === 'string'),
+        supersets: (Array.isArray(m.supersets) ? m.supersets : []).filter((pp) => Array.isArray(pp) && pp.length === 2 && pp.every((x) => typeof x === 'string')),
+      }))
     : null;
   const b = data.big3;
   const importedBig3 = b && typeof b === 'object' ? {
@@ -2107,6 +2229,7 @@ async function init() {
   try {
     await ensureCatalog();
     await ensureHeavySetup();
+    await ensureSupersetSetup();
     await reloadData();
   } catch (e) {
     console.error(e);
