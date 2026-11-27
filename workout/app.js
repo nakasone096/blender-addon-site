@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '3.12.0';
+const APP_VERSION = '3.13.0';
 // 目標のセット数・回数の初期値（種目ごとに変えられる）
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
@@ -33,6 +33,12 @@ const PARTS = [
 const PART_NAME = Object.fromEntries(PARTS.map((p) => [p.id, p.name]));
 
 // 初期の種目。id は固定（旧バージョンの記録を名前で引き継ぐため）
+// ＋1 用の軽め種目（2回後の部位を軽く触る）。名前の「軽め」で、部位の最終実施日には数えない
+const PLUS_ONE_LIGHT = [
+  ['ex-hammer-curl-light', 'ハンマーカール（軽め）', 'arm', { sets: 2, reps: 12, increment: 1, restSec: 75 }],
+  ['ex-side-raise-light', 'サイドレイズ（軽め）', 'shoulder', { sets: 2, reps: 12, increment: 1, restSec: 75 }],
+  ['ex-lat-pulldown-light', 'ラットプルダウン（軽め）', 'back', { sets: 2, reps: 12, increment: 2.5, restSec: 75 }],
+];
 const DEFAULT_EXERCISES = [
   ['ex-bench', 'ベンチプレス', 'chest'],
   ['ex-db-bench', 'ダンベルベンチプレス', 'chest'],
@@ -58,16 +64,18 @@ const DEFAULT_EXERCISES = [
   ['ex-calf-raise', 'カーフレイズ', 'leg'],
   ['ex-bench-light', 'ベンチプレス（軽め）', 'chest', { sets: 3, reps: 5, increment: 2.5 }],
   ['ex-crunch', '腹筋（クランチ）', 'other', { sets: 3, reps: 12 }],
+  ...PLUS_ONE_LIGHT.map(([id, name, part, extra]) => [id, name, part, extra]),
 ];
 // 初期メニュー（5分割・3種目＋1）。並び順が自動判定で回る順（胸→背中→腕→肩→足）。
-// その日の部位3種目に、頻度の補強や弱点の補強として別の部位を1種目（最後）足す。
+// その日の部位3種目に、2回後の日の部位を軽く触る1種目（最後）を足す。
+// 胸→腕、背中→肩、腕→足、肩→胸、足→背中
 // BIG3 の重いセットは ensureHeavySetup が元の種目の前に入れる
 const DEFAULT_SPLIT = [
-  ['m-chest', '胸の日', ['ex-bench', 'ex-incline-bench', 'ex-pec-fly', 'ex-crunch']],
-  ['m-back', '背中の日', ['ex-deadlift', 'ex-lat-pulldown', 'ex-seated-row', 'ex-rear-raise']],
+  ['m-chest', '胸の日', ['ex-bench', 'ex-incline-bench', 'ex-pec-fly', 'ex-hammer-curl-light']],
+  ['m-back', '背中の日', ['ex-deadlift', 'ex-lat-pulldown', 'ex-seated-row', 'ex-side-raise-light']],
   ['m-arm', '腕の日', ['ex-curl', 'ex-pushdown', 'ex-hammer-curl', 'ex-calf-raise']],
   ['m-shoulder', '肩の日', ['ex-shoulder-press', 'ex-side-raise', 'ex-rear-raise', 'ex-bench-light']],
-  ['m-leg', '足の日', ['ex-squat', 'ex-leg-press', 'ex-leg-curl', 'ex-crunch']],
+  ['m-leg', '足の日', ['ex-squat', 'ex-leg-press', 'ex-leg-curl', 'ex-lat-pulldown-light']],
 ];
 const FREE_DAY = 'F';
 // 旧バージョン（A日/B日）の記録の表示名
@@ -275,6 +283,38 @@ async function ensureMenuOrderSetup() {
       s.meta.put({ ...config, menus: [...known, ...others] });
     }
     s.meta.put({ key: 'menu-order-v2', done: true });
+  });
+}
+
+// ＋1 を「2回後の部位を軽く触る」種目に一度だけ入れ替える：[メニュー, 外す旧＋1, 入れる新＋1]
+const PLUS_ONE_SWAPS = [
+  ['m-chest', 'ex-crunch', 'ex-hammer-curl-light'],
+  ['m-back', 'ex-rear-raise', 'ex-side-raise-light'],
+  ['m-leg', 'ex-crunch', 'ex-lat-pulldown-light'],
+];
+async function ensurePlusOneSetup() {
+  await DB.run(['exercises', 'meta'], 'readwrite', async (s) => {
+    if (await DB.req(s.meta.get('plus1-v2'))) return;
+    const exercises = await DB.req(s.exercises.getAll());
+    const have = new Set(exercises.map((e) => e.id));
+    let maxOrder = exercises.reduce((m, e) => Math.max(m, e.order || 0), 0);
+    for (const [id, name, part, extra] of PLUS_ONE_LIGHT) {
+      if (!have.has(id)) s.exercises.put({ id, name, part, order: ++maxOrder, archived: false, ...extra });
+    }
+    const config = await DB.req(s.meta.get('config'));
+    if (config && Array.isArray(config.menus)) {
+      const menus = config.menus.map((m) => {
+        let ids = [...m.exerciseIds];
+        for (const [menuId, oldId, newId] of PLUS_ONE_SWAPS) {
+          if (menuId !== m.id || ids.includes(newId)) continue;
+          ids = ids.filter((x) => x !== oldId);
+          ids.push(newId);
+        }
+        return { ...m, exerciseIds: ids };
+      });
+      s.meta.put({ ...config, menus });
+    }
+    s.meta.put({ key: 'plus1-v2', done: true });
   });
 }
 
@@ -2263,6 +2303,7 @@ async function init() {
     await ensureHeavySetup();
     await ensureSupersetSetup();
     await ensureMenuOrderSetup();
+    await ensurePlusOneSetup();
     await reloadData();
   } catch (e) {
     console.error(e);
