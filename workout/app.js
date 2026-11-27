@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '3.9.0';
+const APP_VERSION = '3.10.0';
 // 目標のセット数・回数の初期値（種目ごとに変えられる）
 const SET_COUNT = 4;
 const TARGET_REPS = 10;
@@ -88,6 +88,7 @@ const state = {
   timer: null,        // 休憩タイマー { endAt, total, label }
   sessionStart: null, // 最初にセットを完了にした時刻
   memos: {},          // { 種目id: メモ }
+  cardio: emptyCardio(), // 有酸素の入力（文字列のまま持つ）
   chartExercise: null,
   chartMetric: 'top',
   big3: null,         // { squat, bench, deadlift: 種目id, goal: kg }
@@ -342,9 +343,10 @@ function emptySets(exId) {
   const w = exById(exId) ? suggestionFor(exId).suggested : null;
   return Array.from({ length: targetFor(exId).sets }, () => ({ weight: w == null ? '' : fmtNum(w), reps: '' }));
 }
-// 自分で入れたもの（回数・メモ）があるか。重さは自動で入るので数えない
+// 自分で入れたもの（回数・メモ・有酸素）があるか。重さは自動で入るので数えない
 function hasAnyInput() {
-  return state.order.some((id) => (state.inputs[id] || []).some((s) => s.reps !== '') || (state.memos[id] || '').trim());
+  return state.order.some((id) => (state.inputs[id] || []).some((s) => s.reps !== '') || (state.memos[id] || '').trim())
+    || CARDIO_FIELDS.some(([k]) => (state.cardio[k] || '') !== '');
 }
 function applyDay(day) {
   state.day = day;
@@ -354,6 +356,7 @@ function applyDay(day) {
   state.warmup = {};
   state.done = {};
   state.memos = {};
+  state.cardio = emptyCardio();
 }
 function removeFromSession(exId) {
   state.order = state.order.filter((id) => id !== exId);
@@ -368,7 +371,7 @@ function saveDraft() {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({
       day: state.day, dayOverridden: state.dayOverridden, date: state.date,
       editingId: state.editingId, order: state.order, inputs: state.inputs, warmup: state.warmup,
-      done: state.done, timer: state.timer, sessionStart: state.sessionStart, memos: state.memos,
+      done: state.done, timer: state.timer, sessionStart: state.sessionStart, memos: state.memos, cardio: state.cardio,
     }));
   } catch (_) { /* 保存できない環境では無視 */ }
 }
@@ -389,6 +392,7 @@ function loadDraft() {
       warmup: d.warmup && typeof d.warmup === 'object' ? d.warmup : {},
       done: d.done && typeof d.done === 'object' ? d.done : {},
       memos: d.memos && typeof d.memos === 'object' ? d.memos : {},
+      cardio: { ...emptyCardio(), ...(d.cardio && typeof d.cardio === 'object' ? d.cardio : {}) },
       timer: d.timer && d.timer.endAt > Date.now() ? d.timer : null,
       sessionStart: Number(d.sessionStart) || null,
     });
@@ -407,8 +411,103 @@ function resetRecordForm() {
   clearDraft();
 }
 
+// ---------- 部位ごとの最終実施日 ----------
+const RECOVERY_PARTS = ['chest', 'back', 'leg', 'shoulder', 'arm'];
+const LONG_GAP_DAYS = 7;
+// 軽めの種目（フォーム練習）は、その部位をやったことに数えない
+function isLight(e) {
+  return !!e && (e.id.endsWith('-light') || e.name.includes('軽め'));
+}
+function daysBetween(from, to) {
+  return Math.round((new Date(`${to}T00:00:00`) - new Date(`${from}T00:00:00`)) / 86400000);
+}
+function lastDoneByPart() {
+  const last = {};
+  for (const s of state.sessions) {
+    for (const ex of s.exercises) {
+      const e = exById(ex.exerciseId);
+      if (!e || isLight(e) || !RECOVERY_PARTS.includes(e.part) || !validSets(ex).length) continue;
+      if (!last[e.part] || s.date > last[e.part]) last[e.part] = s.date;
+    }
+  }
+  return last;
+}
+function renderRecovery() {
+  const last = lastDoneByPart();
+  const today = todayStr();
+  document.getElementById('recovery').replaceChildren(...RECOVERY_PARTS.map((part) => {
+    const date = last[part];
+    const days = date ? Math.max(0, daysBetween(date, today)) : null;
+    const when = days == null ? '記録なし' : days === 0 ? '今日' : days === 1 ? '昨日' : `${days}日前`;
+    const status = days == null ? 'long' : days <= 1 ? 'resting' : days >= LONG_GAP_DAYS ? 'long' : 'ok';
+    const note = status === 'resting' ? '回復中' : status === 'long' ? (days == null ? '—' : `${days}日空き`) : 'OK';
+    return el('div', { class: `rec-item ${status}`, title: date ? `最終実施日 ${fmtDate(date)}` : 'まだ記録がありません' },
+      el('div', { class: 'rec-part' }, PART_NAME[part]),
+      el('div', { class: 'rec-when' }, when),
+      el('div', { class: 'rec-note' }, note));
+  }));
+}
+
+// ---------- 有酸素 ----------
+const CARDIO_FIELDS = [
+  ['minutes', '時間', '分', 'numeric'],
+  ['avgHr', '平均心拍', 'bpm', 'numeric'],
+  ['incline', '傾斜', '%', 'decimal'],
+  ['speed', '速度', 'km/h', 'decimal'],
+];
+function emptyCardio() {
+  return { minutes: '', avgHr: '', incline: '', speed: '' };
+}
+function cardioText(c) {
+  if (!c) return '';
+  const parts = [];
+  if (c.minutes != null) parts.push(`${fmtNum(c.minutes)}分`);
+  if (c.avgHr != null) parts.push(`平均心拍${fmtNum(c.avgHr)}`);
+  if (c.incline != null) parts.push(`傾斜${fmtNum(c.incline)}%`);
+  if (c.speed != null) parts.push(`時速${fmtNum(c.speed)}km`);
+  return parts.join('・');
+}
+// 入力から保存用の値を作る。何もなければ null、数値でないものがあれば false
+function cardioFromInput() {
+  const out = {};
+  for (const [k] of CARDIO_FIELDS) {
+    const raw = (state.cardio[k] || '').trim();
+    if (raw === '') continue;
+    const n = toNum(raw);
+    if (n == null) return false;
+    out[k] = n;
+  }
+  return Object.keys(out).length ? out : null;
+}
+function lastCardio() {
+  for (let i = state.sessions.length - 1; i >= 0; i--) {
+    const s = state.sessions[i];
+    if (s.id !== state.editingId && s.cardio) return s.cardio;
+  }
+  return null;
+}
+function renderCardio() {
+  const prev = lastCardio();
+  document.getElementById('cardio-prev').textContent = prev ? `前回：${cardioText(prev)}` : '';
+  for (const [k] of CARDIO_FIELDS) {
+    const input = document.getElementById(`cardio-${k}`);
+    input.value = state.cardio[k] || '';
+    input.placeholder = prev && prev[k] != null ? fmtNum(prev[k]) : '';
+  }
+}
+function setupCardio() {
+  for (const [k] of CARDIO_FIELDS) {
+    document.getElementById(`cardio-${k}`).addEventListener('input', (e) => {
+      state.cardio[k] = e.target.value.trim();
+      saveDraft();
+    });
+  }
+}
+
 // ---------- 記録画面 ----------
 function renderRecord() {
+  renderRecovery();
+  renderCardio();
   const auto = nextDay();
   renderDaySwitch();
   const label = document.getElementById('day-auto-label');
@@ -909,9 +1008,12 @@ async function saveSession() {
       });
     }
   }
-  if (!exercises.length) { toast('回数かメモが入力されていません'); return; }
+  const cardio = cardioFromInput();
+  if (cardio === false) { toast('有酸素：数値を正しく入力してください'); return; }
+  if (!exercises.length && !cardio) { toast('回数・メモ・有酸素のどれかを入力してください'); return; }
   if (!state.date) { toast('日付を入力してください'); return; }
-  const missing = missingSets();
+  // 有酸素だけの日は、筋トレの未記録を確認しない
+  const missing = exercises.length ? missingSets() : { count: 0 };
   if (missing.count && !(await confirmMissing(missing))) return;
 
   const now = Date.now();
@@ -922,6 +1024,7 @@ async function saveSession() {
     day: state.day,
     dayName: existing && state.day === existing.day ? (existing.dayName || sessionDayLabel(existing)) : dayLabel(state.day),
     exercises,
+    ...(cardio ? { cardio } : {}),
     createdAt: existing ? existing.createdAt : now,
     updatedAt: now,
   };
@@ -954,6 +1057,8 @@ function startEdit(id) {
   state.order = [];
   state.inputs = {};
   state.memos = {};
+  state.cardio = emptyCardio();
+  for (const [k] of CARDIO_FIELDS) if (s.cardio && s.cardio[k] != null) state.cardio[k] = fmtNum(s.cardio[k]);
   for (const ex of s.exercises) {
     if (!exById(ex.exerciseId) || state.order.includes(ex.exerciseId)) continue;
     state.order.push(ex.exerciseId);
@@ -1266,6 +1371,7 @@ function renderHistory() {
       el('span', { class: 'name' }, exName(ex.exerciseId, ex.name)),
       el('span', { class: 'sets-txt' }, setsText(ex), achievedTarget(ex.sets, recTarget(ex)) ? ' ✓' : '')),
     ex.memo ? el('div', { class: 'hist-memo' }, `📝 ${ex.memo}`) : null]),
+    s.cardio ? el('div', { class: 'hist-ex' }, el('span', { class: 'name' }, '🏃 有酸素'), el('span', { class: 'sets-txt' }, cardioText(s.cardio))) : null,
   )));
 }
 
@@ -1741,9 +1847,20 @@ function normalizeSession(raw) {
     day: raw.day,
     ...(typeof raw.dayName === 'string' && raw.dayName ? { dayName: raw.dayName } : {}),
     exercises,
+    ...normalizeCardio(raw.cardio),
     createdAt: Number(raw.createdAt) || Date.now(),
     updatedAt: Number(raw.updatedAt) || Date.now(),
   };
+}
+
+function normalizeCardio(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+  const cardio = {};
+  for (const [k] of CARDIO_FIELDS) {
+    const n = Number(raw[k]);
+    if (raw[k] != null && Number.isFinite(n) && n >= 0) cardio[k] = n;
+  }
+  return Object.keys(cardio).length ? { cardio } : {};
 }
 
 function normalizeExercise(raw) {
@@ -1824,6 +1941,7 @@ function sessionText(s) {
     lines.push(`${exName(ex.exerciseId, ex.name)}：${setsText(ex)}${achievedTarget(ex.sets, recTarget(ex)) ? ` ✓（次回+${fmtNum(incrementFor(ex.exerciseId))}kg）` : ''}`);
     if (ex.memo) lines.push(`　メモ：${ex.memo.replace(/\s*\n\s*/g, ' ／ ')}`);
   }
+  if (s.cardio) lines.push(`有酸素：${cardioText(s.cardio)}`);
   return lines.join('\n');
 }
 
@@ -1983,6 +2101,7 @@ async function init() {
   setupSettings();
   setupTextCopy();
   setupStats();
+  setupCardio();
   setupDialogs();
 
   try {
