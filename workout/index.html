@@ -21,6 +21,7 @@
   <main>
     <!-- 記録 -->
     <section id="view-record" class="view active" aria-labelledby="tab-record">
+      <div id="recovery" class="recovery" aria-label="部位ごとの最終実施日"></div>
       <div class="session-bar card">
         <div class="day-row">
           <div>
@@ -41,6 +42,31 @@
       <p id="record-empty" class="muted empty" hidden>「＋ 種目を追加」から今日やる種目を選んでください</p>
 
       <button type="button" id="add-exercise-btn" class="add-btn">＋ 種目を追加</button>
+
+      <div class="card cardio-card">
+        <div class="cardio-head">
+          <h3>🏃 有酸素<span class="muted small">（任意）</span></h3>
+          <span class="muted small" id="cardio-prev"></span>
+        </div>
+        <div class="cardio-grid">
+          <label class="cardio-field">
+            <span class="muted small">時間（分）</span>
+            <input type="text" id="cardio-minutes" class="num-in" inputmode="numeric" autocomplete="off">
+          </label>
+          <label class="cardio-field">
+            <span class="muted small">平均心拍（bpm）</span>
+            <input type="text" id="cardio-avgHr" class="num-in" inputmode="numeric" autocomplete="off">
+          </label>
+          <label class="cardio-field">
+            <span class="muted small">傾斜（%）</span>
+            <input type="text" id="cardio-incline" class="num-in" inputmode="decimal" autocomplete="off">
+          </label>
+          <label class="cardio-field">
+            <span class="muted small">速度（km/h）</span>
+            <input type="text" id="cardio-speed" class="num-in" inputmode="decimal" autocomplete="off">
+          </label>
+        </div>
+      </div>
 
       <div class="save-area">
         <div id="rest-timer" class="rest-timer" role="timer" aria-live="off" hidden>
